@@ -198,9 +198,19 @@ causing it to loop back into QUIT.
 - Control flow: `IF ELSE THEN`, `BEGIN UNTIL AGAIN`, `BEGIN WHILE REPEAT`.
 - `.` prints hex intentionally — decimal requires bignum (Phase 4). Do not change.
 
-**Phase 2: IN PROGRESS**
-- Next: implement noun heap — tagged pointers, cell allocator, refcount.
-- See "Noun Representation" and "Phase 2 Implementation Order" sections below.
+**Phase 2: COMPLETE**
+- noun.h/noun.c: 4-type tagged noun, bump allocator, refcount, noun_eq.
+- Forth words: `>NOUN`, `NOUN>`, `CONS`, `CAR`, `CDR`, `ATOM?`, `CELL?`, `=NOUN`.
+- Bug fixed: `noun_is_atom` and `ATOM?`/`CELL?` checked bit63 only, missing direct atoms (tag=01).
+  Corrected to `(n >> 62) != 0`.
+
+**Phase 3: COMPLETE (opcodes 0–5)**
+- `src/nock.c`: `slot()` and `nock()` implementing opcodes 0–5.
+- Opcode 2 uses `goto loop` for TCO (no stack growth on compose/eval).
+- Crash behaviour: `nock_crash()` prints to UART and halts; longjmp recovery is Phase 3b.
+- Forth words: `SLOT ( axis noun -- result )`, `NOCK ( subject formula -- product )`.
+- All opcodes 0–5 smoke-tested via REPL.
+- Next: opcodes 6–9 (compound), then 10 (edit/hint), 11 (hint/dynamic).
 
 ## Immediate Tasks for This Agent
 
@@ -274,6 +284,41 @@ Phase 2c  src/forth.s     — CONS, CAR, CDR, ATOM?, CELL?, =noun Forth words
 Phase 2d  smoke test       — 1 2 CONS CDR . → 2 etc.
 ```
 
+## Subject Knowledge Analysis (Phase 5 Design)
+
+Reference: Afonin ~dozreg-toplud, "Subject Knowledge Analysis", UTJ Vol. 3 Issue 1.
+
+SKA is a static analysis pass that takes a `(subject, formula)` pair and produces:
+1. A **call graph** — every Nock 2/9 site annotated as *direct* (formula statically known) or *indirect*
+2. A **subject mask** (`$cape`) — which axes of the subject are used *as code*
+
+**How it works**: Run a partial Nock interpreter symbolically. Subject is `$sock = (cape, data)` where
+unknown parts are stubbed with 0. Propagate known information through the formula tree. At each
+Nock 2 site, if the formula operand is fully known, record the callee and enter a new analysis frame;
+if not, mark the call indirect and return unknown result.
+
+**Why it matters for Fock**:
+
+- **Jet matching becomes compile-time**: Walk the call graph once; at each direct call site compute
+  the battery hash and look it up in the Forth dictionary. If found, annotate the call with a direct
+  Forth word pointer. No per-call hash lookup at runtime.
+- **Direct calls**: Annotated direct calls skip the full `nock()` eval and dispatch straight to the
+  callee's Forth word or compiled bytecode. Paper reports ~1.7× speedup.
+- **Correct cache keying**: Cache key is `(masked_subject, formula)` not `(full_subject, formula)`.
+  Without the mask, changing a counter value in the subject causes a cache miss even when the code
+  hasn't changed. The mask says "only these axes matter for the call graph."
+- **Nomm**: SKA output is annotated Nock where Nock 2 sites carry `info=(unit [sock formula])`.
+  Our equivalent: a Forth word whose body contains direct `bl` instructions to known call targets.
+
+**Loop handling (required, not optional)**: A naive partial evaluator loops forever on `dec`.
+Must detect backedges (Tarjan SCC), defer fixpoint search to SCC exit, then validate.
+
+**When to implement**: Phase 5. Entry point is the `%fast` hint (cold jet registration) and
+eventually `%ska` hint. The `$cape` boolean-tree type needs to be added to `noun.h`.
+
+**Indirect call exceptions** (rare): over-the-wire code, Nock 12, vase-mode Hoon compiler.
+All other Arvo/Gall code is fully analyzable statically.
+
 ## Architecture Decisions (do not reverse without understanding the rationale)
 
 | Decision | Choice | Rationale |
@@ -283,7 +328,7 @@ Phase 2d  smoke test       — 1 2 CONS CDR . → 2 etc.
 | Large atom identity | BLAKE3 content hash (62 bits) | Enables O(1) equality, structural sharing, SD-card backing for 4GB+ atoms |
 | Memory model | Arena + refcount heap | No stop-world GC; event arena reset after each +poke |
 | Noun stack | Separate from Forth stacks | GC root discipline; no mixed-type stack bugs |
-| Jets | Forth dictionary entries | Live-patchable; no C recompile required |
+| Jets | Forth dictionary entries + SKA | Live-patchable; compile-time matching via subject mask |
 | Loom/road | REJECTED | 32-bit legacy; replaced by 64-bit arena+refcount |
 | Bignum | Roll our own (Phase 4) | FSL bignum is wrong license; other options unsuitable |
 | BLAKE3 | Roll our own C (Phase 4b) | Nockchain is Rust; reference C impl is the base |
@@ -300,7 +345,7 @@ Phase 2d  smoke test       — 1 2 CONS CDR . → 2 etc.
 | 3 | Nock 4K eval loop (all 12 opcodes, TCO trampoline) | TODO |
 | 4 | Bignum atoms | TODO |
 | 4b | BLAKE3 implementation + hash_atom() + intern() | TODO |
-| 5 | Jet registry (Forth dict = jet registry, battery hash) | TODO |
+| 5 | Jet registry + SKA (compile-time jet matching, direct calls, subject mask) | TODO |
 | 6 | jam/cue + SD card load + atom cold store | TODO |
 | 7 | Kernel loop: +poke event dispatch, effects vocabulary | TODO |
 | N | North integration (parallel track) | ONGOING |

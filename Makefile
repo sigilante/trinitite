@@ -13,7 +13,7 @@ CFLAGS  = -Wall -O2 -ffreestanding -nostdlib -nostartfiles \
           -I$(SRCDIR)
 LDFLAGS = -T $(SRCDIR)/linker.ld -nostdlib
 
-OBJS    = boot.o uart.o noun.o forth.o main.o
+OBJS    = boot.o uart.o noun.o nock.o forth.o main.o
 
 all: $(TARGET).img
 
@@ -54,7 +54,10 @@ deploy: $(TARGET).img
 	cp $(TARGET).img $(TFTP_ROOT)/
 	@echo "Deployed. Reset the Pi."
 
+test:
+	./tests/run_tests.sh
+
 clean:
 	rm -f *.o *.elf *.img
 
-.PHONY: all run debug deploy clean
+.PHONY: all run debug deploy test clean

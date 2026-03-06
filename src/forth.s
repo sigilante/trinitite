@@ -1458,6 +1458,26 @@ defcode "=NOUN", 5, noueq, 0
     str     x0, [DSP, #-8]!
     NEXT
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NOCK EVAL PRIMITIVES  (Phase 3 — interfaces to nock.c)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// SLOT ( axis noun -- result )   Nock / operator: tree address lookup
+defcode "SLOT", 4, slot, 0
+    ldr     x1, [DSP], #8       // x1 = noun (subject)
+    ldr     x0, [DSP], #8       // x0 = axis (direct atom)
+    bl      slot                // slot(axis, subject)
+    str     x0, [DSP, #-8]!
+    NEXT
+
+// NOCK ( subject formula -- product )   Nock 4K evaluator
+defcode "NOCK", 4, nock, 0
+    ldr     x1, [DSP], #8       // x1 = formula
+    ldr     x0, [DSP], #8       // x0 = subject
+    bl      nock                // nock(subject, formula)
+    str     x0, [DSP, #-8]!
+    NEXT
+
 // ═════════════════════════════════════════════════════════════════════════════
 // QUIT — the top-level interpreter loop
 // ═════════════════════════════════════════════════════════════════════════════
