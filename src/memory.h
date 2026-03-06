@@ -30,10 +30,22 @@
 #define ARENA_SIZE          0x02000000  /* 32MB */
 #define ARENA_TOP           (ARENA_BASE + ARENA_SIZE)
 
-/* Noun persistent heap: refcounted cells and bignums */
+/* Noun persistent heap: refcounted cells and indirect atoms */
 #define HEAP_BASE           0x02490000
 #define HEAP_SIZE           0x04000000  /* 64MB */
 #define HEAP_TOP            (HEAP_BASE + HEAP_SIZE)
+
+/*
+ * Atom store: content-addressed (type-11) atom cache.
+ * Index: hash table mapping 62-bit BLAKE3 prefix -> atom struct pointer.
+ * Data:  atom structs for interned content atoms.
+ * Phase 6 adds SD card cold store behind this hot cache.
+ */
+#define ATOM_INDEX_BASE     0x06490000
+#define ATOM_INDEX_SIZE     0x00100000  /* 1MB — hash table */
+#define ATOM_DATA_BASE      0x06590000
+#define ATOM_DATA_SIZE      0x00400000  /* 4MB — atom struct storage */
+#define ATOM_DATA_TOP       (ATOM_DATA_BASE + ATOM_DATA_SIZE)
 
 /*
  * Stack canary value — written to DSTACK_GUARD on boot.
@@ -42,7 +54,7 @@
  */
 #define STACK_CANARY        0xDEADF0C4
 
-/* Sanity check: heap must not reach MMIO */
-#if (HEAP_BASE + HEAP_SIZE) > 0x3F000000
-#error "Heap region overlaps MMIO"
+/* Sanity check: atom store must not reach MMIO */
+#if ATOM_DATA_TOP > 0x3F000000
+#error "Atom store region overlaps MMIO"
 #endif
