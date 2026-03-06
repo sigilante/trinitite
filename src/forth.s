@@ -1377,6 +1377,88 @@ defcode "WRDS", 4, words, 0
     NEXT
 
 // ═════════════════════════════════════════════════════════════════════════════
+// NOUN PRIMITIVES  (Phase 2 — interfaces to noun.c)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Noun 64-bit word layout (bits 63:62 = tag):
+//   00  cell        bits 31:0 = heap ptr to {refcount, pad, head, tail}
+//   01  direct atom bits 61:0 = value
+//   10  indirect    bits 61:32 = BLAKE3 prefix; bits 31:0 = heap ptr to atom_t
+//   11  content     bits 61:0 = 62-bit BLAKE3 hash
+//
+// C functions called here use AAPCS; x24-x27 (W/RSP/DSP/IP) are callee-saved
+// per AAPCS so they survive bl calls without explicit save/restore.
+
+// CONS ( head tail -- cell )
+defcode "CONS", 4, cons, 0
+    ldr     x1, [DSP], #8       // x1 = tail (TOS)
+    ldr     x0, [DSP], #8       // x0 = head
+    bl      alloc_cell          // returns cell noun in x0
+    str     x0, [DSP, #-8]!
+    NEXT
+
+// CAR ( cell -- head )   head of a cell noun
+defcode "CAR", 3, car, 0
+    ldr     x0, [DSP], #8       // x0 = cell noun
+    and     x0, x0, #0xFFFFFFFF // extract 32-bit heap pointer
+    ldr     x1, [x0, #8]        // cell_t.head at offset 8
+    str     x1, [DSP, #-8]!
+    NEXT
+
+// CDR ( cell -- tail )   tail of a cell noun
+defcode "CDR", 3, cdr, 0
+    ldr     x0, [DSP], #8       // x0 = cell noun
+    and     x0, x0, #0xFFFFFFFF // extract 32-bit heap pointer
+    ldr     x1, [x0, #16]       // cell_t.tail at offset 16
+    str     x1, [DSP, #-8]!
+    NEXT
+
+// >NOUN ( n -- noun )   wrap raw integer as a direct atom noun (tag=01)
+defcode ">NOUN", 5, to_noun, 0
+    ldr     x0, [DSP]
+    lsl     x0, x0, #2          // clear top 2 bits
+    lsr     x0, x0, #2          // n & ~TAG_MASK
+    movz    x1, #0x4000, lsl #48 // TAG_DIRECT = 1<<62
+    orr     x0, x0, x1
+    str     x0, [DSP]
+    NEXT
+
+// NOUN> ( noun -- n )   extract raw integer from a direct atom noun
+defcode "NOUN>", 5, from_noun, 0
+    ldr     x0, [DSP]
+    lsl     x0, x0, #2          // clear top 2 tag bits
+    lsr     x0, x0, #2          // = n & ~TAG_MASK
+    str     x0, [DSP]
+    NEXT
+
+// ATOM? ( noun -- flag )   true (-1) if atom (tag≠00), false (0) if cell
+defcode "ATOM?", 5, isatom, 0
+    ldr     x0, [DSP]
+    lsr     x1, x0, #62         // top 2 bits → positions 1:0
+    cmp     x1, #0
+    csetm   x1, ne              // ne → -1 (atom), eq → 0 (cell)
+    str     x1, [DSP]
+    NEXT
+
+// CELL? ( noun -- flag )   true (-1) if cell (tag=00), false (0) if atom
+defcode "CELL?", 5, iscell, 0
+    ldr     x0, [DSP]
+    lsr     x1, x0, #62         // top 2 bits → positions 1:0
+    cmp     x1, #0
+    csetm   x1, eq              // eq → -1 (cell), ne → 0 (atom)
+    str     x1, [DSP]
+    NEXT
+
+// =NOUN ( n1 n2 -- flag )   structural equality (calls noun_eq in noun.c)
+defcode "=NOUN", 5, noueq, 0
+    ldr     x1, [DSP], #8       // x1 = n2 (TOS)
+    ldr     x0, [DSP], #8       // x0 = n1
+    bl      noun_eq             // returns 1 (equal) or 0 (not equal)
+    neg     x0, x0              // 1 → -1 (Forth true), 0 → 0 (Forth false)
+    str     x0, [DSP, #-8]!
+    NEXT
+
+// ═════════════════════════════════════════════════════════════════════════════
 // QUIT — the top-level interpreter loop
 // ═════════════════════════════════════════════════════════════════════════════
 //
