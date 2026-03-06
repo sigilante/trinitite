@@ -1,0 +1,12 @@
+SECTIONS {
+    . = 0x80000;
+    .text.boot : { *(.text.boot) }
+    .text       : { *(.text) }
+    .rodata     : { *(.rodata) }
+    .data       : { *(.data) }
+    .bss (NOLOAD) : {
+        __bss_start = .;
+        *(.bss)
+        __bss_end = .;
+    }
+}
