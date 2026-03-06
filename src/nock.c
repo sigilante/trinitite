@@ -12,6 +12,45 @@ static void nock_crash(const char *msg) {
     for (;;) {}     /* halt — Phase 3b will longjmp to QUIT instead */
 }
 
+/* ── Hax  (#[axis val target]) ──────────────────────────────────────────── */
+
+/*
+ * Tree edit: replace the noun at axis `a` within `target` with `new_val`.
+ * Mirrors the slot path traversal but rebuilds cells on the way back up.
+ *
+ *   #[1 v t]     = v
+ *   #[2 v [h t]] = [v t]
+ *   #[3 v [h t]] = [h v]
+ *   #[2k v t]    = #[k/even-step …]  (recurse into head subtree)
+ *   #[2k+1 v t]  = #[k/odd-step …]   (recurse into tail subtree)
+ */
+static noun hax(uint64_t a, noun new_val, noun target) {
+    if (a == 0)
+        nock_crash("edit axis 0");
+    if (a == 1)
+        return new_val;
+    if (!noun_is_cell(target))
+        nock_crash("edit in atom");
+
+    cell_t *t = (cell_t *)(uintptr_t)cell_ptr(target);
+
+    /* depth = floor(log2(a)); first path bit selects head(0) vs tail(1) */
+    int d = 0;
+    uint64_t tmp = a;
+    while (tmp > 1) { tmp >>= 1; d++; }
+
+    int first = (int)((a >> (d - 1)) & 1);
+
+    /* sub-axis within the chosen child: strip the leading 1-bit and the
+     * first path bit, then re-attach the sentinel 1-bit. */
+    uint64_t sub = (a & ((1ULL << (d - 1)) - 1)) | (1ULL << (d - 1));
+
+    if (first == 0)
+        return alloc_cell(hax(sub, new_val, t->head), t->tail);
+    else
+        return alloc_cell(t->head, hax(sub, new_val, t->tail));
+}
+
 /* ── Slot  (/[axis subject]) ─────────────────────────────────────────────── */
 
 /*
@@ -120,6 +159,95 @@ loop:
         noun left  = nock(subject, args->head);
         noun right = nock(subject, args->tail);
         return noun_eq(left, right) ? NOUN_YES : NOUN_NO;
+    }
+
+    /* ── 9  *[a 9 b c]  =  *[*[a c] 0 b]  (arm invocation, TCO) ──
+     *
+     * Evaluate c against subject to get a core, pull the arm formula
+     * at axis b, then evaluate that arm with the core as its own subject.
+     * This is every function call in Hoon.
+     */
+    case 9: {
+        if (!noun_is_cell(tail))
+            nock_crash("op9 tail not cell");
+        cell_t *args = (cell_t *)(uintptr_t)cell_ptr(tail);
+        noun b    = args->head;         /* arm axis */
+        noun core = nock(subject, args->tail); /* evaluate core expression */
+        noun arm  = slot(b, core);      /* pull arm formula from core */
+        subject = core;                 /* core is its own subject */
+        formula = arm;
+        goto loop;                      /* TCO */
+    }
+
+    /* ── 6  *[a 6 b c d]  =  if *[a b] then *[a c] else *[a d]  (TCO) ── */
+    case 6: {
+        if (!noun_is_cell(tail))
+            nock_crash("op6 tail not cell");
+        cell_t *args = (cell_t *)(uintptr_t)cell_ptr(tail);
+        noun b = args->head;                    /* condition formula */
+        if (!noun_is_cell(args->tail))
+            nock_crash("op6 missing branches");
+        cell_t *branches = (cell_t *)(uintptr_t)cell_ptr(args->tail);
+        noun cond = nock(subject, b);
+        if (noun_eq(cond, NOUN_YES)) {
+            formula = branches->head;           /* then-branch c */
+            goto loop;
+        } else if (noun_eq(cond, NOUN_NO)) {
+            formula = branches->tail;           /* else-branch d */
+            goto loop;
+        } else {
+            nock_crash("op6 condition not 0 or 1");
+            return NOUN_ZERO;
+        }
+    }
+
+    /* ── 7  *[a 7 b c]  =  *[*[a b] c]  (compose, TCO) ── */
+    case 7: {
+        if (!noun_is_cell(tail))
+            nock_crash("op7 tail not cell");
+        cell_t *args = (cell_t *)(uintptr_t)cell_ptr(tail);
+        subject = nock(subject, args->head);
+        formula = args->tail;
+        goto loop;
+    }
+
+    /* ── 8  *[a 8 b c]  =  *[[*[a b] a] c]  (pin, TCO) ── */
+    case 8: {
+        if (!noun_is_cell(tail))
+            nock_crash("op8 tail not cell");
+        cell_t *args = (cell_t *)(uintptr_t)cell_ptr(tail);
+        noun pinned = nock(subject, args->head);
+        subject = alloc_cell(pinned, subject);  /* [*[a b] a] */
+        formula = args->tail;
+        goto loop;
+    }
+
+    /* ── 10  tree edit / hint ─────────────────────────────────────────────
+     *
+     *  *[a 10 [b c] d]  =  #[b *[a c] *[a d]]   (tree edit)
+     *  *[a 10 b c]      =  *[a c]                 (static hint, ignore b)
+     */
+    case 10: {
+        if (!noun_is_cell(tail))
+            nock_crash("op10 tail not cell");
+        cell_t *args = (cell_t *)(uintptr_t)cell_ptr(tail);
+        noun hint = args->head;
+        noun d    = args->tail;
+
+        if (noun_is_cell(hint)) {
+            /* dynamic: hint = [b c]; edit target at axis b with *[a c] */
+            cell_t *hc = (cell_t *)(uintptr_t)cell_ptr(hint);
+            noun b = hc->head;
+            if (!noun_is_direct(b))
+                nock_crash("op10 edit axis not direct");
+            noun val    = nock(subject, hc->tail);   /* *[a c] */
+            noun target = nock(subject, d);           /* *[a d] */
+            return hax(direct_val(b), val, target);
+        } else {
+            /* static hint: just evaluate d, drop hint atom b */
+            formula = d;
+            goto loop;
+        }
     }
 
     default:

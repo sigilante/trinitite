@@ -204,13 +204,15 @@ causing it to loop back into QUIT.
 - Bug fixed: `noun_is_atom` and `ATOM?`/`CELL?` checked bit63 only, missing direct atoms (tag=01).
   Corrected to `(n >> 62) != 0`.
 
-**Phase 3: COMPLETE (opcodes 0–5)**
-- `src/nock.c`: `slot()` and `nock()` implementing opcodes 0–5.
-- Opcode 2 uses `goto loop` for TCO (no stack growth on compose/eval).
+**Phase 3: COMPLETE (opcodes 0–10)**
+- `src/nock.c`: `slot()`, `hax()`, and `nock()` implementing opcodes 0–10.
+- All TCO opcodes (2, 6, 7, 8, 9, 10-static) use `goto loop` — zero stack growth.
+- `hax(a, val, target)`: recursive tree edit, mirrors `slot` path-bit traversal.
+- Opcode 10: static hint (atom b → TCO eval d), dynamic/tree-edit ([b c] → hax(b, *[a c], *[a d])).
 - Crash behaviour: `nock_crash()` prints to UART and halts; longjmp recovery is Phase 3b.
 - Forth words: `SLOT ( axis noun -- result )`, `NOCK ( subject formula -- product )`.
-- All opcodes 0–5 smoke-tested via REPL.
-- Next: opcodes 6–9 (compound), then 10 (edit/hint), 11 (hint/dynamic).
+- Regression test suite: `tests/run_tests.sh` — 54 tests, all passing (ops 0–10 + SLOT + distribution rule).
+- Next: opcode 11 (hint dispatch + `%wild` jet registration).
 
 ## Immediate Tasks for This Agent
 
@@ -313,11 +315,103 @@ if not, mark the call indirect and return unknown result.
 **Loop handling (required, not optional)**: A naive partial evaluator loops forever on `dec`.
 Must detect backedges (Tarjan SCC), defer fixpoint search to SCC exit, then validate.
 
-**When to implement**: Phase 5. Entry point is the `%fast` hint (cold jet registration) and
-eventually `%ska` hint. The `$cape` boolean-tree type needs to be added to `noun.h`.
+**When to implement**: Phase 5. Entry point is the `%wild` hint (see Jet Architecture below).
+The `$cape` boolean-tree type needs to be added to `noun.h`.
 
 **Indirect call exceptions** (rare): over-the-wire code, Nock 12, vase-mode Hoon compiler.
 All other Arvo/Gall code is fully analyzable statically.
+
+## Jet Architecture (`%wild` + SKA — first-class citizens)
+
+**Decided**: We do NOT implement `%fast` cold-state accumulation. It is a stateful memory leak by design.
+Instead, `%wild` (UIP-0122, ~ritpub-sipsyl) is the sole jet registration mechanism.
+
+### Why `%wild` over `%fast`
+
+`%fast` is a side effect disguised as a hint: it mutates a global `battery_hash → label` table that
+can never be safely pruned and cannot migrate between piers without re-running introduction forms.
+`%wild` embeds the necessary cold-state slice *directly in the Nock*, scoped to the hinted computation.
+
+### `%wild` clue structure
+
+```hoon
++$  cape  $@(? [cape cape])        ::  noun mask: & = known, | = wildcard
++$  sock  [=cape data=*]           ::  core template
++$  wilt  (list [l=* s=sock])      ::  list of [label sock] registrations
+```
+
+The `%wild` dynamic hint clue is a `$wilt` noun (constant — the clue formula MUST be `[1 clue]`).
+The `cape`/`sock` types are identical to those used by SKA. This is intentional — `%wild` is
+essentially a way to ship SKA output (subject masks + labels) inside the Nock itself.
+
+### Sock matching
+
+```
+match(cape, data, noun):
+    cape == &(0)     →  noun == data           (exact match required)
+    cape == |(1)     →  true                   (wildcard, any noun matches)
+    cape is cell, noun is atom  →  false       (structural mismatch)
+    cape is cell, noun is cell  →  match(cape.h, data.h, noun.h)
+                                && match(cape.t, data.t, noun.t)
+```
+
+Battery position (axis 2) is always `cape=&` (must match exactly). Sample/payload is `cape=|` (wildcard).
+This means a jet fires for any gate with the right battery, regardless of what's in the sample.
+
+### Evaluator signature (target)
+
+```c
+noun nock(noun subject, noun formula, const wilt_t *jets, sky_fn_t sky);
+```
+
+- `jets`: current scoped `$wilt` registrations (NULL = none). Lives on the C stack, scoped automatically.
+- `sky`: scry handler (NULL = crash on op 12). Added in Phase 3b.
+- `%wild` hint fires → parse clue → pass new `wilt_t*` into recursive calls → scope exits when call returns.
+
+### Hot state (compile-time, lives in the binary)
+
+```c
+typedef noun (*jet_fn_t)(noun core);
+typedef struct { const char *label; jet_fn_t fn; } hot_entry_t;
+static const hot_entry_t hot_state[] = {
+    { "/dec/one/vial", jet_dec },
+    { "/add/one/vial", jet_add },
+    // ...
+};
+```
+
+Jet functions are C (or Forth words via ABI-compatible wrapper). No dynamic registration — the hot
+state is fixed at compile time. `%wild` provides the runtime bridge from label → matched core.
+
+### Dispatch at op 9
+
+```
+op 9 fires:
+    core = nock(subject, c_formula, jets, sky)
+    arm  = slot(b, core)
+    if jets != NULL:
+        for each [label sock] in jets:
+            if match(sock.cape, sock.data, core):
+                jet = hot_lookup(label)
+                if jet: return jet(core)   ← bypass Nock
+    subject = core; formula = arm; goto loop
+```
+
+### Phase plan for jet infrastructure
+
+| Phase | Work |
+|---|---|
+| **11a** | Op 11 in `nock.c`; hint dispatch table; `%wild` handler parses `$wilt` |
+| **11b** | Sock matching (`noun_match`); `wilt_t` struct; pass through evaluator |
+| **11c** | Op 9 dispatch hook; hot state table; first jets (`dec`, `add`) |
+| **11d** | Forth words: `.JETS`, `.WILT`, jet hit counters |
+| **5** | SKA: symbolic partial evaluator, annotated Nock, compile-time jet matching |
+
+### Compatibility note
+
+We will NOT implement `%fast` cold-state machinery. If we ever need to interop with Hoon-compiled
+Nock that emits `%fast` hints, we silently ignore them (correct: `%fast` is purely advisory).
+`%wild` hints from future Hoon tooling are the target.
 
 ## Architecture Decisions (do not reverse without understanding the rationale)
 
@@ -328,7 +422,7 @@ All other Arvo/Gall code is fully analyzable statically.
 | Large atom identity | BLAKE3 content hash (62 bits) | Enables O(1) equality, structural sharing, SD-card backing for 4GB+ atoms |
 | Memory model | Arena + refcount heap | No stop-world GC; event arena reset after each +poke |
 | Noun stack | Separate from Forth stacks | GC root discipline; no mixed-type stack bugs |
-| Jets | Forth dictionary entries + SKA | Live-patchable; compile-time matching via subject mask |
+| Jets | `%wild` + SKA, hot state in C binary | Stateless registration; no cold-state accumulation; `%fast` intentionally NOT implemented |
 | Loom/road | REJECTED | 32-bit legacy; replaced by 64-bit arena+refcount |
 | Bignum | Roll our own (Phase 4) | FSL bignum is wrong license; other options unsuitable |
 | BLAKE3 | Roll our own C (Phase 4b) | Nockchain is Rust; reference C impl is the base |
@@ -341,11 +435,12 @@ All other Arvo/Gall code is fully analyzable statically.
 |---|---|---|
 | 0 | Toolchain, QEMU, Hello UART | DONE |
 | 1 | Forth kernel: inner interpreter + REPL + control flow | DONE |
-| 2 | Noun heap: tagged pointers, cell alloc, refcount | IN PROGRESS |
-| 3 | Nock 4K eval loop (all 12 opcodes, TCO trampoline) | TODO |
+| 2 | Noun heap: tagged pointers, cell alloc, refcount | DONE |
+| 3 | Nock 4K eval loop (opcodes 0–10, TCO, `hax`) | DONE |
+| 3b | `%wild` + hint dispatch + op 11 + jet infrastructure | IN PROGRESS |
 | 4 | Bignum atoms | TODO |
 | 4b | BLAKE3 implementation + hash_atom() + intern() | TODO |
-| 5 | Jet registry + SKA (compile-time jet matching, direct calls, subject mask) | TODO |
+| 5 | SKA: symbolic partial eval, annotated Nock, compile-time jet matching | TODO |
 | 6 | jam/cue + SD card load + atom cold store | TODO |
 | 7 | Kernel loop: +poke event dispatch, effects vocabulary | TODO |
 | N | North integration (parallel track) | ONGOING |

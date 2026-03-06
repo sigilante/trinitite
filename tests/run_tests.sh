@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fock regression test suite — Nock opcodes 0-5 + SLOT
+# Fock regression test suite — Nock opcodes 0-10 + SLOT
 # Usage: ./tests/run_tests.sh [--verbose]
 #
 # Each test feeds one Forth expression to the REPL and checks the hex
@@ -116,6 +116,95 @@ T "distrib: tail = 43"          "000000000000002B" \
 # *[_ [[1 7] [1 8]]] = [7 8]
 T "distrib: two constants"      "0000000000000007" \
     "0 N>N  1 N>N 7 N>N CONS  1 N>N 8 N>N CONS  CONS  NOCK CAR NOUN> ."
+
+# ── Op 9: arm invocation ──────────────────────────────────────────────────
+# *[0 [9 2 [1 [[4 [0 3]] 42]]]]
+#   core = [[4 [0 3]] 42], arm = slot(2,core) = [4 [0 3]]
+#   nock(core, [4 [0 3]]) = +slot(3,core) = +42 = 43
+T "op9: arm at axis 2"          "000000000000002B" \
+    "0 N>N  9 N>N  2 N>N  1 N>N  4 N>N 0 N>N 3 N>N CONS CONS  42 N>N CONS  CONS  CONS  CONS  NOCK NOUN> ."
+# *[0 [9 3 [1 [100 [4 [0 2]]]]]]
+#   core = [100 [4 [0 2]]], arm = slot(3,core) = [4 [0 2]]
+#   nock(core, [4 [0 2]]) = +slot(2,core) = +100 = 101
+T "op9: arm at axis 3"          "0000000000000065" \
+    "0 N>N  9 N>N  3 N>N  1 N>N  100 N>N  4 N>N 0 N>N 2 N>N CONS CONS  CONS  CONS  CONS  CONS  NOCK NOUN> ."
+# Canonical Hoon pattern: op8 pin arm, op9 call it
+# *[10 [8 [1 [4 [0 3]]] [9 2 [0 1]]]]
+#   pin [4 [0 3]] -> new_subj = [[4 [0 3]] 10]
+#   core = slot(1, new_subj) = [[4 [0 3]] 10]
+#   arm  = slot(2, core) = [4 [0 3]]
+#   nock(core, [4 [0 3]]) = +slot(3, core) = +10 = 11
+T "op9: op8+op9 (Hoon pattern)" "000000000000000B" \
+    "10 N>N  8 N>N  1 N>N 4 N>N 0 N>N 3 N>N CONS CONS CONS  9 N>N 2 N>N 0 N>N 1 N>N CONS CONS CONS  CONS CONS  NOCK NOUN> ."
+
+# ── Op 6: if-then-else ────────────────────────────────────────────────────
+# condition = quoted YES  →  then-branch
+T "op6: YES->then (42)"         "000000000000002A" \
+    "0 N>N  6 N>N  1 N>N 0 N>N CONS  1 N>N 42 N>N CONS  1 N>N 99 N>N CONS  CONS CONS CONS  NOCK NOUN> ."
+# condition = quoted NO  →  else-branch
+T "op6: NO->else (99)"          "0000000000000063" \
+    "0 N>N  6 N>N  1 N>N 1 N>N CONS  1 N>N 42 N>N CONS  1 N>N 99 N>N CONS  CONS CONS CONS  NOCK NOUN> ."
+# condition from subject (0=YES)
+T "op6: subj=YES->then"         "000000000000002A" \
+    "0 N>N  6 N>N  0 N>N 1 N>N CONS  1 N>N 42 N>N CONS  1 N>N 99 N>N CONS  CONS CONS CONS  NOCK NOUN> ."
+# condition from subject (1=NO)
+T "op6: subj=NO->else"          "0000000000000063" \
+    "1 N>N  6 N>N  0 N>N 1 N>N CONS  1 N>N 42 N>N CONS  1 N>N 99 N>N CONS  CONS CONS CONS  NOCK NOUN> ."
+# branches use subject: YES->lus(5)=6, else->5
+T "op6: then-branch uses subj"  "0000000000000006" \
+    "5 N>N  6 N>N  1 N>N 0 N>N CONS  4 N>N 0 N>N 1 N>N CONS CONS  0 N>N 1 N>N CONS  CONS CONS CONS  NOCK NOUN> ."
+
+# ── Op 7: compose ─────────────────────────────────────────────────────────
+# *[5 [7 [4 [0 1]] [4 [0 1]]]] = *[6 [4 [0 1]]] = 7
+T "op7: double lus"             "0000000000000007" \
+    "5 N>N  7 N>N  4 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS  CONS  NOCK NOUN> ."
+# *[[1 2] [7 [0 2] [4 [0 1]]]] = *[1 [4 [0 1]]] = 2
+T "op7: slot then lus"          "0000000000000002" \
+    "1 2 C>N  7 N>N  0 N>N 2 N>N CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS  CONS  NOCK NOUN> ."
+# *[3 [7 [1 10] [6 [0 1] [1 42] [1 99]]]] = *[10 [6 [0 1] ...]] = else(99)
+# 10=NOUN_NO? No, 10 is not a boolean. Use subject 1=NOUN_NO:
+# *[_ [7 [1 1] [6 [0 1] [1 42] [1 99]]]] = *[1 [6 [0 1]...]] = 99
+T "op7: compose into if"        "0000000000000063" \
+    "0 N>N  7 N>N  1 N>N 1 N>N CONS  6 N>N 0 N>N 1 N>N CONS  1 N>N 42 N>N CONS  1 N>N 99 N>N CONS  CONS CONS CONS  CONS  CONS  NOCK NOUN> ."
+
+# ── Op 8: pin ─────────────────────────────────────────────────────────────
+# *[42 [8 [1 99] [0 2]]] = *[[99 42] [0 2]] = 99  (pinned value)
+T "op8: slot pinned"            "0000000000000063" \
+    "42 N>N  8 N>N  1 N>N 99 N>N CONS  0 N>N 2 N>N CONS  CONS CONS  NOCK NOUN> ."
+# *[42 [8 [4 [0 1]] [0 2]]] = *[[43 42] [0 2]] = 43  (lus then slot head)
+T "op8: pin lus, slot head"     "000000000000002B" \
+    "42 N>N  8 N>N  4 N>N 0 N>N 1 N>N CONS CONS  0 N>N 2 N>N CONS  CONS CONS  NOCK NOUN> ."
+# *[42 [8 [4 [0 1]] [0 3]]] = *[[43 42] [0 3]] = 42  (old subject preserved)
+T "op8: old subj preserved"     "000000000000002A" \
+    "42 N>N  8 N>N  4 N>N 0 N>N 1 N>N CONS CONS  0 N>N 3 N>N CONS  CONS CONS  NOCK NOUN> ."
+# *[5 [8 [1 42] [5 [0 2] [0 2]]]] = =[99 99]? No:
+# *[5 [8 [1 42] [5 [0 2] [0 3]]]] = =[ *[[42 5] [0 2]]  *[[42 5] [0 3]] ] = =[42 5] = 1
+T "op8: pin then tis head/tail" "0000000000000001" \
+    "5 N>N  8 N>N  1 N>N 42 N>N CONS  5 N>N 0 N>N 2 N>N CONS  0 N>N 3 N>N CONS  CONS CONS  CONS CONS  NOCK NOUN> ."
+
+# ── Op 10: tree edit / static hint ────────────────────────────────────────
+# Static hint: *[42 [10 7 [0 1]]] = *[42 [0 1]] = 42  (hint atom 7 discarded)
+T "op10: static hint atom"      "000000000000002A" \
+    "42 N>N  10 N>N 7 N>N 0 N>N 1 N>N CONS CONS CONS  NOCK NOUN> ."
+# Static hint with computation: *[5 [10 99 [4 [0 1]]]] = *[5 [4 [0 1]]] = 6
+T "op10: static hint+lus"       "0000000000000006" \
+    "5 N>N  10 N>N 99 N>N 4 N>N 0 N>N 1 N>N CONS CONS CONS CONS  NOCK NOUN> ."
+# Dynamic: *[[1 2] [10 [2 [1 99]] [0 1]]] = #[2 99 [1 2]] = [99 2]
+#   hint=[2 [1 99]]: axis b=2, val=*[subj [1 99]]=99; target=*[subj [0 1]]=[1 2]
+#   hax(2, 99, [1 2]) → [99 2]
+T "op10: edit axis 2 (head)"    "0000000000000063" \
+    "1 2 C>N  10 N>N  2 N>N 1 N>N 99 N>N CONS CONS  0 N>N 1 N>N CONS  CONS  CONS  NOCK CAR NOUN> ."
+# Sibling preserved: tail of [99 2] = 2
+T "op10: edit axis 2, sibling"  "0000000000000002" \
+    "1 2 C>N  10 N>N  2 N>N 1 N>N 99 N>N CONS CONS  0 N>N 1 N>N CONS  CONS  CONS  NOCK CDR NOUN> ."
+# Dynamic: *[[1 2] [10 [3 [1 99]] [0 1]]] = #[3 99 [1 2]] = [1 99]
+T "op10: edit axis 3 (tail)"    "0000000000000063" \
+    "1 2 C>N  10 N>N  3 N>N 1 N>N 99 N>N CONS CONS  0 N>N 1 N>N CONS  CONS  CONS  NOCK CDR NOUN> ."
+# Deep: *[[[1 2] 3] [10 [4 [1 99]] [0 1]]] = #[4 99 [[1 2] 3]] = [[99 2] 3]
+#   hax(4, 99, [[1 2] 3]): d=2, first=0 (head), sub=2
+#   → [hax(2, 99, [1 2])  3] = [[99 2] 3]
+T "op10: deep edit axis 4"      "0000000000000063" \
+    "1 2 C>N 3 N>N CONS  10 N>N  4 N>N 1 N>N 99 N>N CONS CONS  0 N>N 1 N>N CONS  CONS  CONS  NOCK CAR CAR NOUN> ."
 
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
