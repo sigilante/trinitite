@@ -226,6 +226,26 @@ T "op11: %slog returns d"       "0000000000000008" \
 T "op11: %xray returns d"       "000000000000000A" \
     "9 N>N  11 N>N  2036429432 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
 
+# ── Phase 4a: bignum increment and equality ───────────────────────────────
+# 2^62-1 = 4611686018427387903 = max direct atom value
+# 2^62-2 = 4611686018427387902
+#
+# inc at direct→indirect boundary: result must be an atom (ATOM? → Forth -1)
+T "bn_inc: boundary → atom"     "FFFFFFFFFFFFFFFF" \
+    "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK ATOM? ."
+# two independent increments of same maxval are noun-equal
+T "bn_inc: eq same boundary"    "0000000000000000" \
+    "0 N>N  5 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# increments of different values are not equal
+T "bn_inc: neq diff boundary"   "0000000000000001" \
+    "0 N>N  5 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  4 N>N 1 N>N 4611686018427387902 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# double increment of indirect atom: still an atom
+T "bn_inc: indirect → atom"     "FFFFFFFFFFFFFFFF" \
+    "0 N>N  4 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  CONS  NOCK ATOM? ."
+# double increment equality: two independent double-incs are equal
+T "bn_inc: eq double indirect"  "0000000000000000" \
+    "0 N>N  5 N>N  4 N>N 4 N>N 1 N>N 4611686018427387903 N>N CONS CONS CONS  4 N>N 4 N>N 1 N>N 4611686018427387903 N>N CONS CONS CONS  CONS CONS  NOCK NOUN> ."
+
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
 for line in "${TLINES[@]}"; do

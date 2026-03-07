@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include "noun.h"
 #include "nock.h"
+#include "bignum.h"
 #include "uart.h"
 #include "setjmp.h"
 
@@ -10,7 +11,7 @@ jmp_buf nock_abort;   /* established in QUIT's restart path */
 
 /* ── Crash ───────────────────────────────────────────────────────────────── */
 
-static void nock_crash(const char *msg) {
+void nock_crash(const char *msg) {
     uart_puts("\r\nnock crash: ");
     uart_puts(msg);
     uart_puts("\r\n");
@@ -271,9 +272,9 @@ loop:
     /* ── 4  *[a 4 b]  =  +*[a b]  (lus: increment atom) ── */
     case 4: {
         noun r = nock_eval(subject, tail, jets, sky);
-        if (!noun_is_direct(r))
-            nock_crash("op4 increment non-direct (bignum NYI)");
-        return direct(direct_val(r) + 1);
+        if (!noun_is_atom(r))
+            nock_crash("op4 increment of cell");
+        return bn_inc(r);
     }
 
     /* ── 5  *[a 5 b c]  =  =[*[a b] *[a c]]  (tis: 0=equal, 1=not) ── */

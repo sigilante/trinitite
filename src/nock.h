@@ -39,6 +39,9 @@ typedef noun (*jet_fn_t)(noun core, const wilt_t *jets, sky_fn_t sky);
 #include "setjmp.h"
 extern jmp_buf nock_abort;
 
+/* ── Crash ───────────────────────────────────────────────────────────────── */
+__attribute__((noreturn)) void nock_crash(const char *msg);
+
 /* ── Public API ──────────────────────────────────────────────────────────── */
 noun nock(noun subject, noun formula);
 noun nock_ex(noun subject, noun formula, const wilt_t *jets, sky_fn_t sky);
