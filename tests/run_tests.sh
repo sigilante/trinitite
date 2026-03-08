@@ -443,6 +443,52 @@ T "jet gte: gte(5,5)=YES"      "0000000000000000" \
 T "jet gte: gte(2,5)=NO"       "0000000000000001" \
     "0 N>N  6648935 N>N  2 N>N  5 N>N  JCORE2 JD JWRAP  NOCK  NOUN> ."
 
+# ── Phase 5e: bignum div / mod ─────────────────────────────────────────────
+# Cord values: %div=7760228  %mod=6582125
+
+# BNDIV direct
+T "bndiv: 10/3=3"              "0000000000000003" \
+    "10 N>N  3 N>N  BNDIV NOUN> ."
+T "bndiv: 12/4=3"              "0000000000000003" \
+    "12 N>N  4 N>N  BNDIV NOUN> ."
+T "bndiv: 7/7=1"               "0000000000000001" \
+    "7 N>N  7 N>N  BNDIV NOUN> ."
+T "bndiv: 3/5=0 (a<b)"        "0000000000000000" \
+    "3 N>N  5 N>N  BNDIV NOUN> ."
+T "bndiv: 100/1=100"           "0000000000000064" \
+    "100 N>N  1 N>N  BNDIV NOUN> ."
+
+# BNMOD direct
+T "bnmod: 10%3=1"              "0000000000000001" \
+    "10 N>N  3 N>N  BNMOD NOUN> ."
+T "bnmod: 12%4=0"              "0000000000000000" \
+    "12 N>N  4 N>N  BNMOD NOUN> ."
+T "bnmod: 7%7=0"               "0000000000000000" \
+    "7 N>N  7 N>N  BNMOD NOUN> ."
+T "bnmod: 3%5=3 (a<b)"        "0000000000000003" \
+    "3 N>N  5 N>N  BNMOD NOUN> ."
+
+# Cross-check: 17/5=3, 3*5=15, 17%5=2, 15+2=17
+T "bndiv: 17/5=3"              "0000000000000003" \
+    "17 N>N  5 N>N  BNDIV NOUN> ."
+T "bnmod: 17%5=2"              "0000000000000002" \
+    "17 N>N  5 N>N  BNMOD NOUN> ."
+
+# Multi-limb: (10^11 * 10^11) / 10^11 = 10^11
+# 10^11 = 100000000000 (direct atom, < 2^63)
+TD "bndiv: large/large=10^11" "100000000000" \
+    "100000000000 N>N  100000000000 N>N  BNMUL  100000000000 N>N  BNDIV NOUN> N."
+
+# Jet dispatch
+T "jet div: div(10,3)=3"       "0000000000000003" \
+    "0 N>N  7760228 N>N  10 N>N  3 N>N  JCORE2 JD JWRAP  NOCK  NOUN> ."
+T "jet div: div(7,7)=1"        "0000000000000001" \
+    "0 N>N  7760228 N>N  7 N>N  7 N>N  JCORE2 JD JWRAP  NOCK  NOUN> ."
+T "jet mod: mod(10,3)=1"       "0000000000000001" \
+    "0 N>N  6582125 N>N  10 N>N  3 N>N  JCORE2 JD JWRAP  NOCK  NOUN> ."
+T "jet mod: mod(12,4)=0"       "0000000000000000" \
+    "0 N>N  6582125 N>N  12 N>N  4 N>N  JCORE2 JD JWRAP  NOCK  NOUN> ."
+
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
 for line in "${TLINES[@]}"; do

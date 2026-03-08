@@ -354,6 +354,189 @@ noun bn_xor(noun a, noun b) {
     return bn_normalize(result, sr);
 }
 
+/* ── Division helpers ────────────────────────────────────────────────────── */
+
+/*
+ * divlu64: compute floor((u1:u0) / v) where u1 < v (quotient fits in 64 bits).
+ * Stores remainder in *rem_out if non-NULL.
+ *
+ * Uses restoring binary long division — 64 iterations, no 128-bit division.
+ * libgcc (__udivti3) is unavailable in our freestanding environment, so we
+ * avoid __uint128_t / and % entirely.
+ *
+ * Correctness of the 64-bit wrap-around:
+ *   The invariant 0 <= r < v is maintained throughout.  When carry=1 the
+ *   mathematical intermediate is 2^64 + r_shifted >= 2^64 > v, so we always
+ *   subtract.  The invariant guarantees r_shifted < v in that case, so
+ *   r_shifted - v wraps to 2^64 + r_shifted - v, which is the correct
+ *   mathematical remainder (and < v < 2^64, so it fits in 64 bits).
+ */
+static uint64_t divlu64(uint64_t u1, uint64_t u0, uint64_t v, uint64_t *rem_out)
+{
+    uint64_t q = 0, r = u1;
+    for (int i = 63; i >= 0; i--) {
+        uint64_t carry = r >> 63;
+        r = (r << 1) | ((u0 >> i) & 1);
+        if (carry || r >= v) {
+            r -= v;
+            q |= (1ULL << i);
+        }
+    }
+    if (rem_out) *rem_out = r;
+    return q;
+}
+
+/*
+ * div1: divide u[0..m-1] by single 64-bit limb v.
+ * Writes quotient into q[0..m-1].  Returns remainder (< v).
+ * Each step maintains rem < v, so divlu64's precondition is satisfied.
+ */
+static uint64_t div1(const uint64_t *u, uint64_t m, uint64_t v, uint64_t *q) {
+    uint64_t rem = 0;
+    for (int64_t i = (int64_t)m - 1; i >= 0; i--)
+        q[i] = divlu64(rem, u[i], v, &rem);
+    return rem;
+}
+
+/*
+ * divmod_knuth: Knuth Algorithm D (TAOCP §4.3.1) for n >= 2.
+ *
+ * u[0..m+n]: normalized dividend (u[m+n] is the extra leading limb, may be 0).
+ *            Modified in place; u[0..n-1] holds the (still-shifted) remainder
+ *            on return.
+ * v[0..n-1]: normalized divisor with v[n-1] >= 2^63.
+ * q[0..m]:   receives quotient limbs (q[m] is always 0 for normalized input).
+ *
+ * Caller un-shifts the remainder by the D1 shift value.
+ *
+ * Normalization guarantees u[j+n] < v[n-1] at every step, so divlu64's
+ * precondition (numerator_high < denominator) is always satisfied.
+ */
+static void divmod_knuth(uint64_t *u, uint64_t m,
+                         const uint64_t *v, uint64_t n,
+                         uint64_t *q)
+{
+    for (int64_t j = (int64_t)m; j >= 0; j--) {
+        /* D3: estimate qhat = floor((u[j+n]:u[j+n-1]) / v[n-1])
+         * u[j+n] < v[n-1] by normalization, so divlu64 precondition holds. */
+        uint64_t qhat = divlu64(u[j+n], u[j+n-1], v[n-1], NULL);
+        __uint128_t rhat = ((__uint128_t)u[j+n] << 64) | u[j+n-1];
+        rhat -= (__uint128_t)qhat * v[n-1];
+
+        /* D3 refinement: while qhat*v[n-2] > B*rhat + u[j+n-2], decrement */
+        while (rhat < ((__uint128_t)1 << 64)) {
+            __uint128_t lhs = (__uint128_t)qhat * v[n-2];
+            __uint128_t rhs = (rhat << 64) | u[j+n-2];
+            if (lhs <= rhs) break;
+            qhat--;
+            rhat += v[n-1];
+        }
+
+        /* D4: u[j..j+n] -= qhat * v[0..n-1]  (tracked with signed 128-bit) */
+        __int128_t borrow = 0;
+        for (uint64_t i = 0; i <= n; i++) {
+            uint64_t vi = (i < n) ? v[i] : 0;
+            __int128_t t = (__int128_t)u[j+i] - (__int128_t)qhat * vi + borrow;
+            u[j+i] = (uint64_t)t;
+            borrow  = t >> 64;
+        }
+
+        /* D5: if borrow < 0, qhat was 1 too large — add v back once */
+        if (borrow < 0) {
+            qhat--;
+            uint64_t carry = 0;
+            for (uint64_t i = 0; i < n; i++) {
+                __uint128_t s = (__uint128_t)u[j+i] + v[i] + carry;
+                u[j+i] = (uint64_t)s;
+                carry   = (uint64_t)(s >> 64);
+            }
+            u[j+n] += carry;
+        }
+
+        q[j] = qhat;
+    }
+}
+
+/*
+ * Internal: divmod_impl — compute quotient and/or remainder.
+ * Both a and b must be atoms.  Crashes on division by zero.
+ */
+static void bn_divmod_impl(noun a, noun b, noun *q_out, noun *r_out) {
+    if (!noun_is_atom(a) || !noun_is_atom(b))
+        nock_crash("bn_divmod: non-atom");
+
+    uint64_t lb[BN_MAX_LIMBS];
+    uint64_t sb = atom_limbs(b, lb);
+    if (sb == 1 && lb[0] == 0)
+        nock_crash("bn_divmod: division by zero");
+
+    /* Trivial: a < b → quotient 0, remainder a */
+    if (bn_cmp(a, b) < 0) {
+        if (q_out) *q_out = NOUN_ZERO;
+        if (r_out) *r_out = a;
+        return;
+    }
+
+    uint64_t la[BN_MAX_LIMBS];
+    uint64_t sa = atom_limbs(a, la);
+
+    /* Single-limb divisor: fast path using div1 */
+    if (sb == 1) {
+        uint64_t qscratch[BN_MAX_LIMBS];
+        uint64_t rem = div1(la, sa, lb[0], qscratch);
+        if (q_out) *q_out = bn_normalize(qscratch, sa);
+        if (r_out) *r_out = make_atom(&rem, 1);
+        return;
+    }
+
+    /* Multi-limb: Knuth Algorithm D */
+    uint64_t n = sb;                /* divisor limb count, n >= 2 */
+    uint64_t m = sa - n;           /* sa >= n guaranteed by bn_cmp check above */
+
+    /* D1: normalize — shift so v[n-1] has its high bit set */
+    uint64_t shift = (uint64_t)__builtin_clzll(lb[n-1]);
+
+    uint64_t v[BN_MAX_LIMBS];
+    if (shift == 0) {
+        for (uint64_t i = 0; i < n; i++) v[i] = lb[i];
+    } else {
+        v[0] = lb[0] << shift;
+        for (uint64_t i = 1; i < n; i++)
+            v[i] = (lb[i] << shift) | (lb[i-1] >> (64 - shift));
+    }
+
+    /* Dividend u[0..m+n]: shifted, with one extra limb u[sa] = 0 or carry */
+    uint64_t u[BN_MAX_LIMBS + 1];
+    if (shift == 0) {
+        for (uint64_t i = 0; i < sa; i++) u[i] = la[i];
+        u[sa] = 0;
+    } else {
+        u[0] = la[0] << shift;
+        for (uint64_t i = 1; i < sa; i++)
+            u[i] = (la[i] << shift) | (la[i-1] >> (64 - shift));
+        u[sa] = la[sa-1] >> (64 - shift);
+    }
+
+    uint64_t q[BN_MAX_LIMBS + 1];
+    for (uint64_t i = 0; i <= m; i++) q[i] = 0;
+
+    divmod_knuth(u, m, v, n, q);
+
+    if (q_out) *q_out = bn_normalize(q, m + 1);
+
+    if (r_out) {
+        if (shift == 0) {
+            *r_out = bn_normalize(u, n);
+        } else {
+            uint64_t r[BN_MAX_LIMBS];
+            for (uint64_t i = 0; i < n - 1; i++)
+                r[i] = (u[i] >> shift) | (u[i+1] << (64 - shift));
+            r[n-1] = u[n-1] >> shift;
+            *r_out = bn_normalize(r, n);
+        }
+    }
+}
+
 /* ── bn_mul ──────────────────────────────────────────────────────────────── */
 
 noun bn_mul(noun a, noun b) {
@@ -383,4 +566,18 @@ noun bn_mul(noun a, noun b) {
         }
     }
     return bn_normalize(result, sr);
+}
+
+/* ── bn_div / bn_mod ─────────────────────────────────────────────────────── */
+
+noun bn_div(noun a, noun b) {
+    noun q;
+    bn_divmod_impl(a, b, &q, NULL);
+    return q;
+}
+
+noun bn_mod(noun a, noun b) {
+    noun r;
+    bn_divmod_impl(a, b, NULL, &r);
+    return r;
 }

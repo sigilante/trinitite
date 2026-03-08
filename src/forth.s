@@ -1620,6 +1620,22 @@ defcode "BNMUL", 5, bnmul, 0
     str     x0, [DSP, #-8]!
     NEXT
 
+// BNDIV ( n1 n2 -- n )   integer quotient: floor(n1 / n2)
+defcode "BNDIV", 5, bndiv, 0
+    ldr     x1, [DSP], #8
+    ldr     x0, [DSP], #8
+    bl      bn_div
+    str     x0, [DSP, #-8]!
+    NEXT
+
+// BNMOD ( n1 n2 -- n )   remainder: n1 mod n2
+defcode "BNMOD", 5, bnmod, 0
+    ldr     x1, [DSP], #8
+    ldr     x0, [DSP], #8
+    bl      bn_mod
+    str     x0, [DSP, #-8]!
+    NEXT
+
 // ─────────────────────────────────────────────────────────────────────────────
 // JAM / CUE  (Phase 5a — noun serialization / deserialization)
 // ─────────────────────────────────────────────────────────────────────────────

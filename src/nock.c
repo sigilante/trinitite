@@ -177,6 +177,22 @@ static noun jet_gte(noun core, const wilt_t *jets, sky_fn_t sky) {
     return bn_cmp(a, b) >= 0 ? NOUN_YES : NOUN_NO;
 }
 
+static noun jet_div(noun core, const wilt_t *jets, sky_fn_t sky) {
+    (void)jets; (void)sky;
+    noun a = slot(direct(12), core);
+    noun b = slot(direct(13), core);
+    if (!noun_is_atom(a) || !noun_is_atom(b)) nock_crash("jet div: non-atom args");
+    return bn_div(a, b);
+}
+
+static noun jet_mod(noun core, const wilt_t *jets, sky_fn_t sky) {
+    (void)jets; (void)sky;
+    noun a = slot(direct(12), core);
+    noun b = slot(direct(13), core);
+    if (!noun_is_atom(a) || !noun_is_atom(b)) nock_crash("jet mod: non-atom args");
+    return bn_mod(a, b);
+}
+
 /* ── Hot state ────────────────────────────────────────────────────────────── */
 
 /*
@@ -196,6 +212,8 @@ static const hot_entry_t hot_state[] = {
     { 6845543, jet_gth },   /* %gth */
     { 6648940, jet_lte },   /* %lte */
     { 6648935, jet_gte },   /* %gte */
+    { 7760228, jet_div },   /* %div */
+    { 6582125, jet_mod },   /* %mod */
     { 0, NULL }             /* sentinel */
 };
 

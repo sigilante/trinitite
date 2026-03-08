@@ -103,3 +103,11 @@ noun bn_xor(noun a, noun b);
  * Note: inputs are clipped to BN_MAX_LIMBS limbs by atom_limbs(); atoms
  * larger than 4096 bits have degraded accuracy as multiplication inputs. */
 noun bn_mul(noun a, noun b);
+
+/* ── Division ─────────────────────────────────────────────────────────────── */
+
+/* bn_div: integer quotient floor(a / b).  Crashes if b == 0. */
+noun bn_div(noun a, noun b);
+
+/* bn_mod: remainder a mod b (Euclidean: 0 <= result < b).  Crashes if b == 0. */
+noun bn_mod(noun a, noun b);
