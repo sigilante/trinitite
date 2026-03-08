@@ -119,6 +119,50 @@ int noun_eq(noun a, noun b) {
     return 0;
 }
 
+/* ── pill_load ───────────────────────────────────────────────────────────── */
+
+/*
+ * Load a jammed atom from PILL_BASE (placed there by QEMU's loader device).
+ * Returns NOUN_ZERO if no pill is present (size field = 0).
+ * The caller should pass the result to CUE to decode the noun.
+ */
+noun pill_load(void) {
+    volatile uint8_t *base = (volatile uint8_t *)PILL_BASE;
+
+    /* Read 8-byte little-endian byte count */
+    uint64_t nbytes = 0;
+    for (int i = 0; i < 8; i++)
+        nbytes |= (uint64_t)base[i] << (i * 8);
+
+    if (nbytes == 0)
+        return NOUN_ZERO;
+
+    uint64_t nlimbs = (nbytes + 7) / 8;
+
+    noun r = alloc_indirect(nlimbs);
+    atom_t *a = (atom_t *)(uintptr_t)indirect_ptr(r);
+
+    /* Copy jam bytes into limbs, zero-padding the last partial limb */
+    uint8_t *dst = (uint8_t *)a->limbs;
+    volatile uint8_t *src = base + 8;
+    for (uint64_t i = 0; i < nbytes; i++)
+        dst[i] = src[i];
+    for (uint64_t i = nbytes; i < nlimbs * 8; i++)
+        dst[i] = 0;
+
+    /* Strip trailing zero limbs */
+    uint64_t sig = nlimbs;
+    while (sig > 1 && a->limbs[sig - 1] == 0)
+        sig--;
+    a->size = sig;
+
+    /* Promote to direct atom if value fits in 62 bits */
+    if (sig == 1 && a->limbs[0] < (1ULL << 62))
+        return direct(a->limbs[0]);
+
+    return hash_atom(r);
+}
+
 /* ── hash_atom ───────────────────────────────────────────────────────────── */
 
 /* Number of significant bytes in the last limb (1–8). */

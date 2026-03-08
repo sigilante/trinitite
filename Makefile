@@ -37,6 +37,20 @@ run: $(TARGET).img
 	  -display none \
 	  -nographic
 
+# Load a pill into QEMU memory and run interactively.
+# Pill format: 8-byte LE uint64 byte-count, then raw jam bytes.
+# Create pill.bin from pill.jam:
+#   python3 -c "import sys,struct; d=open('pill.jam','rb').read(); \
+#     open('pill.bin','wb').write(struct.pack('<Q',len(d))+d)"
+PILL ?= pill.bin
+run-pill: $(TARGET).img
+	qemu-system-aarch64 \
+	  -machine raspi3b \
+	  -kernel $(TARGET).img \
+	  -device loader,file=$(PILL),addr=0x10000000,force-raw=on \
+	  -display none \
+	  -nographic
+
 debug: $(TARGET).img
 	qemu-system-aarch64 \
 	  -machine raspi3b \
@@ -61,4 +75,4 @@ test:
 clean:
 	rm -f *.o *.elf *.img
 
-.PHONY: all run debug deploy test clean
+.PHONY: all run run-pill debug deploy test clean

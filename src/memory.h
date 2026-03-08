@@ -58,3 +58,16 @@
 #if ATOM_DATA_TOP > 0x3F000000
 #error "Atom store region overlaps MMIO"
 #endif
+
+/*
+ * QEMU file-loader landing pad.
+ * Load a pill with:
+ *   -device loader,file=pill.bin,addr=0x10000000,force-raw=on
+ *
+ * File format (little-endian):
+ *   bytes 0-7:  uint64_t = byte count of jam data that follows
+ *   bytes 8+:   raw jam bytes (little-endian bignum)
+ *
+ * 256 MB: safely above all allocators (~107 MB top) and below MMIO (0x3F000000).
+ */
+#define PILL_BASE  0x10000000

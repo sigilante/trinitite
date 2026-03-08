@@ -101,3 +101,7 @@ int   noun_eq(noun a, noun b);
    Returns a new noun word with the 30-bit hash prefix embedded in bits 61:32.
    Non-indirect nouns are returned unchanged. */
 noun  hash_atom(noun n);
+
+/* Load a jammed atom from PILL_BASE (placed by QEMU's -device loader).
+   Returns NOUN_ZERO if no pill is present. CUE the result to decode. */
+noun  pill_load(void);

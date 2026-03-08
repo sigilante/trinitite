@@ -1505,6 +1505,14 @@ defcode "HATOM", 5, hash_atom_word, 0
     str     x0, [DSP, #-8]!    // push result
     NEXT
 
+// PILL ( -- atom )   load jammed atom from PILL_BASE (QEMU -device loader).
+//   Returns noun-zero (direct 0) if no pill was loaded.
+//   Caller should CUE the result to decode the noun.
+defcode "PILL", 4, pill, 0
+    bl      pill_load           // noun.c: reads from PILL_BASE, returns atom
+    str     x0, [DSP, #-8]!
+    NEXT
+
 // B3OK ( -- flag )   run official BLAKE3 test vectors; pushes 1=pass 0=fail
 defcode "B3OK", 4, b3ok, 0
     bl      blake3_selftest     // blake3.c: returns 1 (pass) or 0 (fail)
