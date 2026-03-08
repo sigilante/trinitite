@@ -479,10 +479,10 @@ for (( i=0; i<N; i++ )); do
     exp="${TEXPECT[$i]}"
     got="${ACTUAL[$i]-MISSING}"
     if [[ "$got" == "$exp" ]]; then
-        (( PASS++ ))
+        (( ++PASS ))
         [[ $VERBOSE -eq 1 ]] && echo -e "${GRN}PASS${NC}  ${TNAMES[$i]}"
     else
-        (( FAIL++ ))
+        (( ++FAIL ))
         echo -e "${RED}FAIL${NC}  ${TNAMES[$i]}"
         echo "      expected: $exp"
         echo "      got:      $got"
