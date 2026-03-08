@@ -166,6 +166,20 @@ Direct atom boundary raised from 2^62-1 to 2^63-1.
 
 **141 tests passing.**
 
+### Phase 5e — Bignum Division and Modulo
+
+`bn_div(a, b)` = floor(a/b) and `bn_mod(a, b)` = a mod b in `src/bignum.c`.
+Forth words: `BNDIV` `( n1 n2 -- quot )`, `BNMOD` `( n1 n2 -- rem )`.
+Jets: `%div` (cord 7760228), `%mod` (cord 6582125) added to `hot_state[]`.
+
+Implementation:
+- Single-limb divisor: `div1()` fast path using `divlu64()`.
+- Multi-limb: Knuth Algorithm D (TAOCP §4.3.1); `__int128_t` borrow tracking in D4/D5.
+- `divlu64(u1, u0, v, rem)`: restoring binary long division in 64 iterations,
+  using only 64-bit ops. Avoids `__udivti3` (not available in freestanding libgcc).
+
+**157 tests passing.**
+
 ### Phase 5c — PILL: QEMU File Loader
 `PILL` Forth word loads a jammed atom from physical address `0x10000000`, placed there by
 QEMU's `-device loader` at startup. Enables loading arbitrary nouns (formulas, cores, pills)
