@@ -142,6 +142,30 @@ Jets are keyed on **label cord atoms** (not battery hashes) and registered via `
 
 **141 tests passing.**
 
+### Phase 5d — Noun Tag Redesign
+
+New tagging scheme making direct atoms natural integers:
+
+| Bits 63:62 | Type | Representation |
+|------------|------|----------------|
+| `0x` (bit 63 = 0) | direct atom | value = noun word (0..2^63-1) |
+| `10` | indirect atom | 62-bit BLAKE3 hash of limb data |
+| `11` | cell | 32-bit heap pointer in bits 31:0 |
+
+Key change: `direct(42) == 42` — the raw integer is the noun. `42 >NOUN .` now prints
+`000000000000002A` instead of `400000000000002A`.
+
+Atom store (ATOM_INDEX_BASE / ATOM_DATA_BASE) is now load-bearing:
+- 65536-slot open-addressed hash table (hash62 → atom_t*)
+- 4MB bump allocator for atom_t + limbs
+- `make_atom(limbs, size)`: normalize → BLAKE3 → store → return noun
+- Equality for atoms: word compare only (hash62 IS the identity)
+
+`HATOM` Forth word is now a no-op (atoms always content-addressed).
+Direct atom boundary raised from 2^62-1 to 2^63-1.
+
+**141 tests passing.**
+
 ### Phase 5c — PILL: QEMU File Loader
 `PILL` Forth word loads a jammed atom from physical address `0x10000000`, placed there by
 QEMU's `-device loader` at startup. Enables loading arbitrary nouns (formulas, cores, pills)
