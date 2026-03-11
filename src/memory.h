@@ -60,14 +60,20 @@
 #endif
 
 /*
- * QEMU file-loader landing pad.
- * Load a pill with:
- *   -device loader,file=pill.bin,addr=0x10000000,force-raw=on
- *
- * File format (little-endian):
- *   bytes 0-7:  uint64_t = byte count of jam data that follows
- *   bytes 8+:   raw jam bytes (little-endian bignum)
+ * PILL format v2 (written by tools/mkpill.py):
+ *   bytes  0-7:   uint64_t (LE) = byte count of jam data
+ *   byte   8:     kernel shape  (0 = Arvo, 1 = Shrine)
+ *   bytes  9-15:  reserved/padding (zeros)
+ *   bytes  16+:   raw jam bytes (16-byte aligned)
  *
  * 256 MB: safely above all allocators (~107 MB top) and below MMIO (0x3F000000).
  */
 #define PILL_BASE  0x10000000
+
+/*
+ * UART receive buffer: static window between TIB end and dictionary base.
+ * Used by RECV-NOUN to accumulate incoming jam bytes before decoding.
+ * Limit: ~28KB. Sufficient for Phase 6 test events.
+ */
+#define UART_RXBUF_BASE  0x00089100
+#define UART_RXBUF_SIZE  0x00006F00

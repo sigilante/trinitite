@@ -34,9 +34,9 @@
 .set TIB_SIZE,     256
 
 // ── UART (PL011) ─────────────────────────────────────────────────────────────
-
-.set UART_DR,   0x3F201000
-.set UART_FR,   0x3F201018
+// RPi 4 / QEMU raspi4b: PL011 at 0xFE201000
+.set UART_DR,   0xFE201000
+.set UART_FR,   0xFE201018
 
 // ── Register aliases ─────────────────────────────────────────────────────────
 
@@ -2024,6 +2024,62 @@ quit_word_loop:
 defcode "_QR", 3, quit_resume, F_HIDDEN
     b       quit_word_loop
 
+// ── Phase 6 — Kernel Loop ─────────────────────────────────────────────────
+
+// KSHAPE  ( -- addr )   kernel shape: 0=Arvo 1=Shrine
+//   Loaded from PILL header by KERNEL. Inspect with KSHAPE @
+defvar "KSHAPE", 6, kshape, 0, 0
+
+// NOUN-RX ( -- noun )   read length-framed cue-decoded noun from UART
+defcode "NOUN-RX", 7, recv_noun, 0
+    bl      uart_recv_noun          // kernel.c
+    str     x0, [DSP, #-8]!
+    NEXT
+
+// NOUN-TX ( noun -- )   jam noun, write length-framed to UART
+defcode "NOUN-TX", 7, send_noun, 0
+    ldr     x0, [DSP], #8
+    bl      uart_send_noun          // kernel.c
+    NEXT
+
+// DO-FX ( effects -- )   walk effect list, dispatch %out/%blit to UART
+defcode "DO-FX", 5, dispatch_fx, 0
+    ldr     x0, [DSP], #8
+    bl      dispatch_effects        // kernel.c
+    NEXT
+
+// ALOOP ( kernel -- )   Arvo-shaped kernel event loop, never returns
+defcode "ALOOP", 5, arvo_loop_word, 0
+    ldr     x0, [DSP], #8
+    bl      arvo_loop               // kernel.c; never returns
+
+// SLOOP ( kernel -- )   Shrine-shaped kernel event loop, never returns
+defcode "SLOOP", 5, shrine_loop_word, 0
+    ldr     x0, [DSP], #8
+    bl      shrine_loop             // kernel.c; never returns
+
+// KERNEL ( -- )
+//   Load PILL, decode kernel gate, dispatch to Arvo or Shrine loop
+//   based on the shape byte in the PILL header (stored in KSHAPE).
+//   Falls back to QUIT if no pill is present.
+defcode "KERNEL", 6, kernel, 0
+    bl      pill_load               // x0 = jammed atom; sets noun_pill_shape
+    // propagate C global noun_pill_shape → KSHAPE variable
+    ldr     x1, =noun_pill_shape
+    ldr     w1, [x1]                // 32-bit C int
+    ldr     x2, =word_kshape + 32   // KSHAPE storage cell
+    str     x1, [x2]
+    cbz     x0, .Lkernel_nopill
+    bl      cue                     // x0 = kernel gate noun
+    ldr     x1, =word_kshape + 32
+    ldr     x1, [x1]
+    cbnz    x1, .Lkernel_shrine
+    bl      arvo_loop               // never returns
+.Lkernel_shrine:
+    bl      shrine_loop             // never returns
+.Lkernel_nopill:
+    b       code_quit               // no pill: start REPL
+
     .section .rodata
     .balign 8
 trampoline_quit:
@@ -2119,7 +2175,7 @@ str_err_end:
     .balign 8
     .global cold_start
 cold_start:
-    .quad   word_quit
+    .quad   word_kernel
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ENTRY POINT
@@ -2143,7 +2199,7 @@ forth_main:
     // 'link' is the assembler symbol holding the last defined entry address.
     // We store it into LATEST's body at runtime.
     ldr     x0, =word_latest + 32       // address of LATEST's storage cell
-    ldr     x1, =word_quit_resume       // last defined entry (see defcode order)
+    ldr     x1, =word_kernel        // last defined entry (see defcode order)
     str     x1, [x0]
 
     // Print banner

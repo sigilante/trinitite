@@ -96,5 +96,8 @@ noun  make_atom(const uint64_t *limbs, uint64_t size);
 atom_t *atom_store_get(uint64_t hash62);
 
 /* Load a jammed atom from PILL_BASE (placed by QEMU's -device loader).
-   Returns NOUN_ZERO if no pill is present. CUE the result to decode. */
+   Reads PILL format v2 header: sets noun_pill_shape (0=Arvo, 1=Shrine).
+   Returns 0 (C null) if no pill is present; otherwise a valid tagged noun.
+   CUE the result to decode. */
+extern int noun_pill_shape;
 noun  pill_load(void);

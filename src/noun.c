@@ -209,6 +209,22 @@ int noun_eq(noun a, noun b) {
 
 /* ── pill_load ───────────────────────────────────────────────────────────── */
 
+/*
+ * PILL format v2:
+ *   bytes  0-7:   uint64_t (LE) = byte count of jam data
+ *   byte   8:     kernel shape  (0=Arvo, 1=Shrine)
+ *   bytes  9-15:  reserved/padding
+ *   bytes  16+:   raw jam bytes (16-byte aligned)
+ *
+ * Static scratch avoids stack overflow for large pills (~1MB limit).
+ */
+#define PILL_MAX_BYTES  (1024U * 1024U)
+#define PILL_MAX_LIMBS  (PILL_MAX_BYTES / 8U)
+
+int noun_pill_shape = 0;   /* 0=Arvo, 1=Shrine; set by pill_load */
+
+static uint64_t pill_scratch[PILL_MAX_LIMBS];
+
 noun pill_load(void) {
     volatile uint8_t *base = (volatile uint8_t *)PILL_BASE;
 
@@ -218,27 +234,24 @@ noun pill_load(void) {
         nbytes |= (uint64_t)base[i] << (i * 8);
 
     if (nbytes == 0)
-        return NOUN_ZERO;
+        return 0;   /* C null — sentinel for "no pill"; KERNEL checks cbz x0 */
 
+    /* Read shape byte and store in global */
+    noun_pill_shape = (int)base[8];
+
+    /* Jam data starts at offset 16 (16-byte aligned) */
     uint64_t nlimbs = (nbytes + 7) / 8;
-
-    /* Read into a temporary limb array on the stack.
-       Limit to BN_MAX_LIMBS (defined in bignum.h) — use a local constant here
-       to avoid a circular include dependency. */
-#define PILL_MAX_LIMBS 64
     if (nlimbs > PILL_MAX_LIMBS) nlimbs = PILL_MAX_LIMBS;
 
-    uint64_t scratch[PILL_MAX_LIMBS];
-
-    uint8_t *dst = (uint8_t *)scratch;
-    volatile uint8_t *src = base + 8;
+    uint8_t *dst = (uint8_t *)pill_scratch;
+    volatile uint8_t *src = base + 16;
     for (uint64_t i = 0; i < nlimbs * 8; i++)
         dst[i] = (i < nbytes) ? src[i] : 0;
 
     /* Strip trailing zero limbs */
     uint64_t sig = nlimbs;
-    while (sig > 1 && scratch[sig - 1] == 0)
+    while (sig > 1 && pill_scratch[sig - 1] == 0)
         sig--;
 
-    return make_atom(scratch, sig);
+    return make_atom(pill_scratch, sig);
 }

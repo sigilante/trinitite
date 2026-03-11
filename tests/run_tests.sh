@@ -485,6 +485,14 @@ T "jet mod: mod(10,3)=1"       "0000000000000001" \
 T "jet mod: mod(12,4)=0"       "0000000000000000" \
     "0 N>N  6582125 N>N  12 N>N  4 N>N  JCORE2 JD JWRAP  NOCK  NOUN> ."
 
+# ── Phase 6 — Kernel Loop ─────────────────────────────────────────────────
+T "KSHAPE default zero"        "0000000000000000" \
+    "KSHAPE @  ."
+T "DO-FX empty list"           "0000000000000001" \
+    "0 >NOUN DO-FX  1 ."
+T "DO-FX %out effect"          "0000000000000001" \
+    "7632239 >NOUN  0 >NOUN CONS  0 >NOUN CONS  DO-FX  1 ."
+
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
 for line in "${TLINES[@]}"; do
@@ -492,7 +500,7 @@ for line in "${TLINES[@]}"; do
 done
 
 RAW=$({ printf '%s\n' "$INPUT"; sleep 2; printf '\001x'; } | \
-    timeout 30 qemu-system-aarch64 -machine raspi3b -kernel kernel8.img \
+    timeout 30 qemu-system-aarch64 -machine raspi4b -kernel kernel8.img \
         -display none -nographic 2>/dev/null || true)
 
 # Extract results from output lines.

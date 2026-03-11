@@ -6,7 +6,7 @@ Running the bare-metal Forth/Nock OS on a Raspberry Pi 3B/3B+.
 
 | Item | Notes |
 |------|-------|
-| Raspberry Pi 3B or 3B+ | 3A+ also works |
+| Raspberry Pi 4 Model B | 2 GB or 4 GB both work |
 | microSD card (≥ 1 GB) | FAT32 formatted |
 | USB-to-3.3V serial adapter | CP2102, FT232, CH340, etc. — **3.3 V logic, not 5 V** |
 | 3× female-to-female jumper wires | |

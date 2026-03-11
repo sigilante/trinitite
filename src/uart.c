@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#define PL011_BASE  0x3F201000
+#define PL011_BASE  0xFE201000   /* RPi 4 */
 #define UART_DR     (*(volatile uint32_t*)(PL011_BASE + 0x00))
 #define UART_FR     (*(volatile uint32_t*)(PL011_BASE + 0x18))
 #define UART_IBRD   (*(volatile uint32_t*)(PL011_BASE + 0x24))
@@ -31,4 +31,14 @@ void uart_puts(const char *s) {
         if (*s == '\n') uart_putc('\r');
         uart_putc(*s++);
     }
+}
+
+void uart_read_bytes(uint8_t *buf, uint64_t n) {
+    for (uint64_t i = 0; i < n; i++)
+        buf[i] = (uint8_t)uart_getc();
+}
+
+void uart_write_bytes(const uint8_t *buf, uint64_t n) {
+    for (uint64_t i = 0; i < n; i++)
+        uart_putc((char)buf[i]);
 }
