@@ -58,3 +58,18 @@ noun slot(noun axis, noun subject);
  */
 noun nock_op9_continue(noun core, noun ax,
                        const wilt_t *jets, sky_fn_t sky);
+
+/* ── Jet lookup and sock matching ────────────────────────────────────────── */
+/*
+ * hot_lookup: look up a jet by its label cord.  Returns NULL if not found.
+ * Used by the SKA cook pass to pre-wire jet pointers at NOMM_DS2 sites.
+ */
+jet_fn_t hot_lookup(noun label);
+
+/*
+ * sock_match: structural pattern match against a (cape, data, subject) triple.
+ *   cape == 0 (& / NOUN_YES) → exact match: noun_eq(data, subject) required
+ *   cape == 1 (| / NOUN_NO)  → wildcard: always matches
+ *   cape is cell              → recurse into head and tail
+ */
+int sock_match(noun cape, noun data, noun subject);

@@ -220,13 +220,14 @@ CI: QEMU 9.2.0 from source (raspi4b), 158 REPL tests + 5 kernel boot tests all p
 **Phase 7: Implement SKA in C** — 8 stages, see ROADMAP.md for full detail.
 
 The stages in order (each builds on the previous):
-1. **7a** `src/ska.h` — types: `cape_t`, `sock_t`, `nomm_t`, `nomm1_t`, `bell_t`, `short_t`, `long_t`, `cycle_t`
-2. **7b** `src/ska.c` — cape/sock ops: `cape_app`, `sock_pull`, `sock_huge`, `sock_knit`, `sock_purr`, `sock_darn`, `dunno`
-3. **7c** `src/ska.c` — scan pass for linear opcodes (all except loop case; `%2` emits `%i2` conservatively)
-4. **7d** `src/ska.c` — memo cache (cross-arm, keyed by `(formula, sub-sock)`)
-5. **7e** `src/ska.c` — loop detection: `close()` heuristic, `add_frond()`, frond validation, redo-loop
-6. **7f** `src/ska.c` — cook pass: `nomm → nomm-1`, wire `%ds2` sites to `hot_state[]`
+1. **7a** `src/ska.h` — types: `cape_t`, `sock_t`, `nomm_t`, `nomm1_t`, `bell_t`, `short_t`, `long_t`, `cycle_t` ✅
+2. **7b** `src/ska.c` — cape/sock ops: `cape_app`, `sock_pull`, `sock_huge`, `sock_knit`, `sock_purr`, `sock_darn`, `dunno` ✅
+3. **7c** `src/ska.c` — scan pass for all opcodes; `%9` → `NOMM_DS2`/`NOMM_9`; `SKNOCK` Forth word ✅
+4. **7d** `src/ska.c` — memo cache (cross-arm, keyed by `(formula, sub-sock)`) ✅
+5. **7e** `src/ska.c` — loop detection: `close()` heuristic, fols_stack, frond validation, redo-loop ✅
+6. **7f** `src/ska.c` — cook pass: `nomm → nomm-1`, wire `%ds2` sites to `hot_state[]` 🔄
 7. **7g** `src/nock.c` + `src/forth.s` — `ska_analyze()`, SKA cache in `nock_eval`, Forth words `SKA`/`.SKA`
+8. **7h** Tests for cook pass (inlining, looping gate, `run_nomm1` jet dispatch)
 8. **7h** `tests/run_tests.sh` — SKA-specific tests
 
 **Phase 8** (after 7): Move Nock dispatch into Forth dictionary (see below).
@@ -467,7 +468,7 @@ core = run_nomm1(subject, c_nomm1, ...)  // %ds2 already resolved to jet_fn_t
 | 5d | Noun tag redesign (direct atom = raw integer) | DONE |
 | 6 | Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch | DONE |
 | CI | QEMU raspi4b + 158 REPL tests + 5 kernel boot tests | DONE |
-| 7 | SKA: symbolic partial eval, `$nomm` AST, compile-time jet matching | TODO |
+| 7 | SKA: symbolic partial eval, `$nomm` AST, compile-time jet matching | IN PROGRESS (7a–7e ✅, 7f 🔄) |
 | 8 | Forth as jet dashboard: evaluator dispatch in dictionary | TODO |
 
 PoC gate: Phases 0-7. Phase 8 is "turning it into a live-patchable OS."

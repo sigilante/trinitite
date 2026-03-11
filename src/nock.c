@@ -95,7 +95,7 @@ static void parse_wilt(noun wilt_noun, wilt_t *out) {
  *   cape == NOUN_NO  (1) → wildcard: always matches
  *   cape is cell         → recurse into head and tail
  */
-static int sock_match(noun cape, noun data, noun subject) {
+int sock_match(noun cape, noun data, noun subject) {
     if (noun_is_atom(cape)) {
         if (direct_val(cape) == 0)      /* & — exact match */
             return noun_eq(data, subject);
@@ -217,7 +217,7 @@ static const hot_entry_t hot_state[] = {
     { 0, NULL }             /* sentinel */
 };
 
-static jet_fn_t hot_lookup(noun label) {
+jet_fn_t hot_lookup(noun label) {
     if (!noun_is_direct(label)) return NULL;
     uint64_t cord = direct_val(label);
     for (int i = 0; hot_state[i].fn != NULL; i++) {

@@ -281,6 +281,8 @@ Arvo and Shrine shapes. CI: 158 REPL tests + 5 kernel boot integration tests all
 
 ### Phase 7 — SKA (Subject Knowledge Analysis)
 
+**STATUS: IN PROGRESS** — Stages 7a–7e complete (177 tests passing). Stage 7f (cook pass) in progress.
+
 Reference implementation: [`dozreg-toplud/ska`](https://github.com/dozreg-toplud/ska) (Hoon).
 Paper: Afonin ~dozreg-toplud, UTJ vol. 3 issue 1.
 
@@ -405,12 +407,12 @@ initial sock. After SKA, op-9 dispatch skips `sock_match` entirely at
 
 | Stage | File(s) | Content |
 |-------|---------|---------|
-| **7a** Types           | `src/ska.h`  | `cape_t`, `sock_t`, `nomm_t`, `nomm1_t`, `bell_t`, `site_t`, `short_t`, `long_t`, `cycle_t` |
-| **7b** Sock ops        | `src/ska.c`  | `cape_and/or`, `cape_app`, `sock_pull`, `sock_huge`, `sock_knit`, `sock_purr`, `sock_pack`, `sock_darn`, `dunno` |
-| **7c** Scan (linear)   | `src/ska.c`  | All opcodes; `%2` emits `%i2` for loops (conservative) |
-| **7d** Memo cache      | `src/ska.c`  | Cross-arm cache keyed by `(formula, sub-sock)` |
-| **7e** Loop detection  | `src/ska.c`  | `close()`, `add_frond()`, frond validation, melo cache, redo-loop |
-| **7f** Cook pass       | `src/ska.c`  | `nomm → nomm-1`; wire `%ds2` sites to `hot_state[]` |
+| **7a** Types           | `src/ska.h`  | ✅ `cape_t`, `sock_t`, `nomm_t`, `nomm1_t`, `bell_t`, `site_t`, `short_t`, `long_t`, `cycle_t` |
+| **7b** Sock ops        | `src/ska.c`  | ✅ `cape_and/or`, `cape_app`, `sock_pull`, `sock_huge`, `sock_knit`, `sock_purr`, `sock_pack`, `sock_darn`, `dunno` |
+| **7c** Scan (linear)   | `src/ska.c`  | ✅ All opcodes; `%9` → `NOMM_DS2` or `NOMM_9` fallback; `SKNOCK` Forth word |
+| **7d** Memo cache      | `src/ska.c`  | ✅ Cross-arm cache keyed by `(formula, sub-sock)`; per-pass reset |
+| **7e** Loop detection  | `src/ska.c`  | ✅ `close()` heuristic, fols_stack, frond validation, redo-loop |
+| **7f** Cook pass       | `src/ska.c`  | 🔄 `nomm → nomm-1`; wire `%ds2` sites to `hot_state[]` |
 | **7g** Integration     | `src/nock.c`, `src/forth.s` | `ska_analyze()`, SKA cache in `nock_eval`, `SKA`/`.SKA` Forth words |
 | **7h** Tests           | `tests/run_tests.sh` | Inlining, looping gate, jet fire, `%i2` fallback |
 

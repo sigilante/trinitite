@@ -180,11 +180,12 @@ struct nomm1_s {
         struct { nomm1_t *p; nomm1_t *q; } ndist;
         /* NOMM_2: unified call site (was i2 / ds2 / dus2 before cook) */
         struct {
-            nomm1_t  *p;            /* subject formula */
-            nomm1_t  *q;            /* formula formula (NULL for direct-safe) */
-            bool      has_bell;     /* true if bell is valid */
+            nomm1_t  *p;            /* subject formula                         */
+            nomm1_t  *q;            /* formula formula (NULL for direct)       */
+            uint64_t  ax;           /* arm axis (for nock_op9_continue)        */
+            bool      has_bell;     /* true if bell is valid                   */
             bell_t    bell;         /* subject template + formula for matching */
-            jet_fn_t  jet;          /* non-NULL if a hot jet matched, else NULL */
+            jet_fn_t  jet;          /* non-NULL if a hot jet matched           */
         } n2;
     };
     sock_t prod;

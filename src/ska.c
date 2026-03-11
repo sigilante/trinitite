@@ -6,7 +6,7 @@
  *   7c: scan pass — linear opcodes
  *   7d: memo cache
  *   7e: loop detection (close + cycles + frond validation)
- *   7f: cook pass (nomm → nomm1)
+ *   7f: cook pass (nomm → nomm1) + run_nomm1 interpreter
  *   7g: run_nomm1 + ska_analyze public entry point
  *
  * Reference: skan.hoon (dozreg-toplud/ska), arms ++so (sock ops) and ++ca (cape ops)
@@ -148,6 +148,10 @@ static void pop_fols(void)
 {
     if (g_fols_top > 0) g_fols_top--;
 }
+
+/* ── Forward declarations ─────────────────────────────────────────────────── */
+static nomm_t  *scan(sock_t sub, noun fol);
+static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Stage 7b — Cape operations  (mirrors Hoon ++ca in skan.hoon)
@@ -1089,26 +1093,391 @@ noun ska_nock(noun subject, noun formula,
                 redo = true;
             }
         }
-        if (!redo)
-            return eval_nomm(nomm, subject, jets, sky);
+        if (!redo) {
+            nomm1_t *cooked = cook_nomm(nomm, jets);
+            if (!cooked)
+                return eval_nomm(nomm, subject, jets, sky);
+            return run_nomm1(cooked, subject, jets, sky);
+        }
     }
 
     /* Exhausted retries — fall back to plain nock_eval. */
     return fallback(subject, formula, jets, sky);
 }
 
-/* Stubs for cook-pass API (Stage 7f). */
-boil_t *ska_analyze(noun subject, noun formula,
-                    const wilt_t *jets, sky_fn_t sky)
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Stage 7f — Cook pass: nomm_t → nomm1_t
+ *
+ * Converts the scan-pass AST into the final annotated form used by
+ * run_nomm1().  All Nock-2 variants (I2, DS2, DUS2, NOMM_9) are collapsed
+ * into a single NOMM_2 node that carries:
+ *   p        — cooked subject formula
+ *   q        — cooked formula formula (NULL = formula known statically)
+ *   ax       — arm slot axis (for nock_op9_continue fallback)
+ *   has_bell — true if the call site identity is known
+ *   bell     — {bus=expected core sock, fol=arm formula noun}
+ *   jet      — pre-wired jet function pointer, or NULL
+ *
+ * Jet wiring: if the expected core sock is fully known (cape == &) and a
+ * %wild registration matches via sock_match, hot_lookup() installs the jet
+ * directly in the nomm1 node.  run_nomm1 can then dispatch in O(1).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+static nomm1_t *nomm1_alloc(void)
 {
-    (void)subject; (void)formula; (void)jets; (void)sky;
+    nomm1_t *n = (nomm1_t *)ska_alloc(sizeof(nomm1_t));
+    return n;
+}
+
+/*
+ * cook_find_jet: try to pre-wire a jet at a DS2 call site.
+ *
+ * At cook time we have the static sock for the expected core (bus).  If the
+ * cape is fully known (&), bus.data is the exact core value and we can do
+ * a static sock_match against each %wild registration.  On a hit, install
+ * the jet function pointer directly in the nomm1 node.
+ */
+static jet_fn_t cook_find_jet(sock_t bus, const wilt_t *jets)
+{
+    if (!jets) return NULL;
+    /* Only static jet lookup when we have full knowledge of the core. */
+    if (!cape_is_known(bus.cape)) return NULL;
+    for (int i = 0; i < jets->len; i++) {
+        if (sock_match(jets->e[i].sock.cape, jets->e[i].sock.data, bus.data)) {
+            jet_fn_t fn = hot_lookup(jets->e[i].label);
+            if (fn) return fn;
+        }
+    }
     return NULL;
 }
 
-noun run_nomm1(const nomm1_t *n, noun subject,
+static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets)
+{
+    if (!n) return NULL;
+    nomm1_t *r = nomm1_alloc();
+    if (!r) return NULL;
+    r->prod = n->prod;
+
+    switch (n->tag) {
+
+    case NOMM_0:
+        r->tag     = NOMM_0;
+        r->n0.ax   = n->n0.ax;
+        return r;
+
+    case NOMM_1:
+        r->tag     = NOMM_1;
+        r->n1.val  = n->n1.val;
+        return r;
+
+    case NOMM_3:
+        r->tag          = NOMM_3;
+        r->n_unary.p    = cook_nomm(n->n_unary.p, jets);
+        return r;
+
+    case NOMM_4:
+        r->tag          = NOMM_4;
+        r->n_unary.p    = cook_nomm(n->n_unary.p, jets);
+        return r;
+
+    case NOMM_5:
+        r->tag   = NOMM_5;
+        r->n5.p  = cook_nomm(n->n5.p, jets);
+        r->n5.q  = cook_nomm(n->n5.q, jets);
+        return r;
+
+    case NOMM_6:
+        r->tag   = NOMM_6;
+        r->n6.c  = cook_nomm(n->n6.c, jets);
+        r->n6.y  = cook_nomm(n->n6.y, jets);
+        r->n6.n  = cook_nomm(n->n6.n, jets);
+        return r;
+
+    case NOMM_7:
+        r->tag   = NOMM_7;
+        r->n7.p  = cook_nomm(n->n7.p, jets);
+        r->n7.q  = cook_nomm(n->n7.q, jets);
+        return r;
+
+    case NOMM_8:
+        r->tag   = NOMM_8;
+        r->n8.p  = cook_nomm(n->n8.p, jets);
+        r->n8.q  = cook_nomm(n->n8.q, jets);
+        return r;
+
+    case NOMM_9:
+        /* Conservative: emit NOMM_2 with no bell.  nock_op9_continue handles
+         * dynamic jet dispatch + fallback at run time. */
+        r->tag         = NOMM_2;
+        r->n2.p        = cook_nomm(n->n9.core_fol, jets);
+        r->n2.q        = NULL;
+        r->n2.ax       = direct_val(n->n9.ax);
+        r->n2.has_bell = false;
+        r->n2.jet      = NULL;
+        return r;
+
+    case NOMM_10:
+        r->tag           = NOMM_10;
+        r->n10.ax        = n->n10.ax;
+        r->n10.val_fol   = cook_nomm(n->n10.val_fol, jets);
+        r->n10.tgt_fol   = cook_nomm(n->n10.tgt_fol, jets);
+        return r;
+
+    case NOMM_11:
+        r->tag        = NOMM_11;
+        r->n11.tag    = n->n11.tag;
+        r->n11.is_dyn = n->n11.is_dyn;
+        r->n11.main   = cook_nomm(n->n11.main, jets);
+        r->n11.clue   = n->n11.is_dyn ? cook_nomm(n->n11.clue, jets) : NULL;
+        return r;
+
+    case NOMM_12:
+        r->tag           = NOMM_12;
+        r->n12.ref_fol   = cook_nomm(n->n12.ref_fol, jets);
+        r->n12.thunk_fol = cook_nomm(n->n12.thunk_fol, jets);
+        return r;
+
+    case NOMM_DIST:
+        r->tag      = NOMM_DIST;
+        r->ndist.p  = cook_nomm(n->ndist.p, jets);
+        r->ndist.q  = cook_nomm(n->ndist.q, jets);
+        return r;
+
+    case NOMM_I2:
+        /* Indirect: formula formula computed at runtime. */
+        r->tag         = NOMM_2;
+        r->n2.p        = cook_nomm(n->i2.p, jets);
+        r->n2.q        = cook_nomm(n->i2.q, jets);
+        r->n2.ax       = 0;
+        r->n2.has_bell = false;
+        r->n2.jet      = NULL;
+        return r;
+
+    case NOMM_DS2: {
+        /* Direct: arm formula known statically.  Try to pre-wire a jet. */
+        sock_t bus = n->ds2.p ? n->ds2.p->prod
+                              : (sock_t){ cape_wild(), NOUN_ZERO };
+        r->tag         = NOMM_2;
+        r->n2.p        = cook_nomm(n->ds2.p, jets);
+        r->n2.q        = NULL;
+        r->n2.ax       = n->ds2.ax;
+        r->n2.has_bell = true;
+        r->n2.bell.bus = bus;
+        r->n2.bell.fol = n->ds2.fol;
+        r->n2.jet      = cook_find_jet(bus, jets);
+        return r;
+    }
+
+    case NOMM_DUS2: {
+        /* Direct-unsafe: formula known but computed at runtime via q. */
+        sock_t bus = n->dus2.p ? n->dus2.p->prod
+                               : (sock_t){ cape_wild(), NOUN_ZERO };
+        r->tag         = NOMM_2;
+        r->n2.p        = cook_nomm(n->dus2.p, jets);
+        r->n2.q        = cook_nomm(n->dus2.q, jets);
+        r->n2.ax       = 0;
+        r->n2.has_bell = true;
+        r->n2.bell.bus = bus;
+        r->n2.bell.fol = NOUN_ZERO;   /* computed at runtime via q */
+        r->n2.jet      = cook_find_jet(bus, jets);
+        return r;
+    }
+
+    case NOMM_2:
+        nock_crash("cook: NOMM_2 should not appear in nomm_t");
+        return NULL;
+
+    default:
+        nock_crash("cook: unknown nomm tag");
+        return NULL;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Stage 7f — run_nomm1: interpret a cooked nomm1_t AST
+ *
+ * Mirrors eval_nomm() but operates on the NOMM_2-unified representation.
+ * NOMM_2 dispatch priority:
+ *   1. Static jet (pre-wired at cook time, O(1)): fires if core matches bell
+ *   2. Indirect (q != NULL): compute formula at runtime, fallback nock_ex
+ *   3. Direct (has_bell, q == NULL): nock_op9_continue for dynamic dispatch
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+noun run_nomm1(const nomm1_t *n, noun sub,
                const wilt_t *jets, sky_fn_t sky)
 {
-    (void)n; (void)subject; (void)jets; (void)sky;
-    nock_crash("run_nomm1: cook pass not yet implemented (Stage 7f)");
-    return NOUN_ZERO;
+    if (!n) {
+        nock_crash("run_nomm1: null node");
+        return NOUN_ZERO;
+    }
+
+    switch (n->tag) {
+
+    case NOMM_0:
+        return slot(n->n0.ax, sub);
+
+    case NOMM_1:
+        return n->n1.val;
+
+    case NOMM_3: {
+        noun r = run_nomm1(n->n_unary.p, sub, jets, sky);
+        return noun_is_cell(r) ? NOUN_YES : NOUN_NO;
+    }
+
+    case NOMM_4: {
+        noun r = run_nomm1(n->n_unary.p, sub, jets, sky);
+        if (!noun_is_atom(r)) nock_crash("run_nomm1 op4: increment of cell");
+        return bn_inc(r);
+    }
+
+    case NOMM_5: {
+        noun l = run_nomm1(n->n5.p, sub, jets, sky);
+        noun r = run_nomm1(n->n5.q, sub, jets, sky);
+        return noun_eq(l, r) ? NOUN_YES : NOUN_NO;
+    }
+
+    case NOMM_6: {
+        noun cond = run_nomm1(n->n6.c, sub, jets, sky);
+        if (noun_eq(cond, NOUN_YES))
+            return run_nomm1(n->n6.y, sub, jets, sky);
+        if (noun_eq(cond, NOUN_NO))
+            return run_nomm1(n->n6.n, sub, jets, sky);
+        nock_crash("run_nomm1 op6: condition not 0 or 1");
+        return NOUN_ZERO;
+    }
+
+    case NOMM_7: {
+        noun mid = run_nomm1(n->n7.p, sub, jets, sky);
+        return run_nomm1(n->n7.q, mid, jets, sky);
+    }
+
+    case NOMM_8: {
+        noun val     = run_nomm1(n->n8.p, sub, jets, sky);
+        noun new_sub = alloc_cell(val, sub);
+        return run_nomm1(n->n8.q, new_sub, jets, sky);
+    }
+
+    case NOMM_2: {
+        noun core = run_nomm1(n->n2.p, sub, jets, sky);
+
+        /* 1. Static jet: pre-wired at cook time, O(1) dispatch. */
+        if (n->n2.jet != NULL && n->n2.has_bell) {
+            if (sock_match(n->n2.bell.bus.cape, n->n2.bell.bus.data, core))
+                return n->n2.jet(core, jets, sky);
+        }
+
+        /* 2. Indirect (I2): formula formula computed at runtime. */
+        if (n->n2.q != NULL) {
+            noun fol = run_nomm1(n->n2.q, sub, jets, sky);
+            return nock_ex(core, fol, jets, sky);
+        }
+
+        /* 3. Direct (DS2 / NOMM_9 converted): nock_op9_continue for
+         *    dynamic jet dispatch + nock_eval fallback. */
+        return nock_op9_continue(core, direct(n->n2.ax), jets, sky);
+    }
+
+    case NOMM_10: {
+        noun val    = run_nomm1(n->n10.val_fol, sub, jets, sky);
+        noun target = run_nomm1(n->n10.tgt_fol, sub, jets, sky);
+        if (!noun_is_direct(n->n10.ax))
+            nock_crash("run_nomm1 op10: axis not direct");
+        uint64_t ax = direct_val(n->n10.ax);
+        if (ax == 0) nock_crash("run_nomm1 op10: axis 0");
+        return ska_hax(ax, val, target);
+    }
+
+    case NOMM_11: {
+        if (n->n11.is_dyn) {
+            noun clue = run_nomm1(n->n11.clue, sub, jets, sky);
+            if (noun_is_direct(n->n11.tag) &&
+                direct_val(n->n11.tag) == 0x646C6977ULL /* %wild */) {
+                wilt_t wild_buf;
+                ska_parse_wilt(clue, &wild_buf);
+                return run_nomm1(n->n11.main, sub, &wild_buf, sky);
+            }
+            (void)clue;
+        }
+        return run_nomm1(n->n11.main, sub, jets, sky);
+    }
+
+    case NOMM_12:
+        nock_crash("run_nomm1: op12 scry not supported");
+        return NOUN_ZERO;
+
+    case NOMM_DIST: {
+        noun head = run_nomm1(n->ndist.p, sub, jets, sky);
+        noun tail = run_nomm1(n->ndist.q, sub, jets, sky);
+        return alloc_cell(head, tail);
+    }
+
+    /* Scan-only variants must not appear in nomm1_t: */
+    case NOMM_I2:
+    case NOMM_DS2:
+    case NOMM_DUS2:
+        nock_crash("run_nomm1: uncooked nomm_t variant in nomm1_t tree");
+        return NOUN_ZERO;
+
+    /* NOMM_9 in nomm1_t should have been converted to NOMM_2 by cook. */
+    case NOMM_9:
+        nock_crash("run_nomm1: raw NOMM_9 in cooked tree (cook bug)");
+        return NOUN_ZERO;
+
+    default:
+        nock_crash("run_nomm1: unknown tag");
+        return NOUN_ZERO;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Stage 7f — ska_analyze: full scan + cook pipeline
+ *
+ * Returns a boil_t* containing the cooked nomm1_t entry point, allocated
+ * from the per-call SKA arena.  Returns NULL on hard failure.
+ *
+ * The returned boil_t is valid until the next ska_arena_reset() call.
+ * Stage 7g will copy it to a persistent arena for caching.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+boil_t *ska_analyze(noun subject, noun formula,
+                    const wilt_t *jets, sky_fn_t sky)
+{
+    (void)sky;
+
+    g_block_len = 0;
+    sock_t sub_sock = (sock_t){ .cape = cape_wild(), .data = subject };
+
+    for (int attempt = 0; attempt <= SKA_MAX_RETRIES; attempt++) {
+        ska_pass_reset();
+
+        nomm_t *nomm = scan(sub_sock, formula);
+        if (!nomm) return NULL;
+
+        /* Validate fronds: retry if any loop assumption is invalid. */
+        bool redo = false;
+        for (int i = 0; i < g_frond_len; i++) {
+            if (!sock_huge(g_fronds[i].par_sub, g_fronds[i].kid_sub)) {
+                if (g_block_len < SKA_MAX_BLOCK) {
+                    g_block[g_block_len].par = g_fronds[i].par_site;
+                    g_block[g_block_len].kid = g_fronds[i].kid_site;
+                    g_block_len++;
+                }
+                redo = true;
+            }
+        }
+        if (redo) continue;
+
+        /* Cook pass: nomm_t → nomm1_t. */
+        nomm1_t *cooked = cook_nomm(nomm, jets);
+        if (!cooked) return NULL;
+
+        boil_t *boil = (boil_t *)ska_alloc(sizeof(boil_t));
+        if (!boil) return NULL;
+        boil->entry  = cooked;
+        boil->lon    = NULL;   /* long_t integration deferred to Stage 7g */
+        boil->nsites = 0;
+        return boil;
+    }
+
+    return NULL;  /* exhausted retries */
 }
