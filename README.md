@@ -28,7 +28,7 @@ make CC=aarch64-linux-gnu-gcc LD=aarch64-linux-gnu-ld \
 ```
 make run          # boots into the Forth REPL
 make debug        # boots under GDB
-make test         # run regression suite (141 tests)
+make test         # run regression suite (355 tests)
 ```
 
 ## REPL basics

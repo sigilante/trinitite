@@ -208,28 +208,23 @@ add/sub/mul/div/mod/cmp/lsh/rsh/or/and/xor/bex/met, decimal print. Noun tag rede
 direct atom = raw integer (bit 63 = 0).
 
 **Phase 5a/5b/5c/5d: COMPLETE** — Jam/cue (`src/jam.c`). PILL loader (0x10000000).
-Hot jets wired. All 158 REPL tests passing.
+Hot jets wired.
 
 **Phase 7: COMPLETE** — Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch.
 PILL v2 format. Forth words: `KSHAPE`, `RECV-NOUN`, `SEND-NOUN`, `DISPATCH-FX`,
 `ARVO-LOOP`, `SHRINE-LOOP`, `KERNEL`.
-CI: QEMU 9.2.0 from source (raspi4b), 158 REPL tests + 5 kernel boot tests all passing.
+CI: QEMU 9.2.0 from source (raspi4b).
 
 ## Immediate Tasks for This Agent
 
-**Phase 9: Forth as Jet Dashboard** — 7 stages, see ROADMAP.md for full detail.
+Phase 9 is complete (all 355 tests passing). The PoC gate (Phases 0–9) is cleared.
+The Forth dictionary IS the jet dashboard — thesis demonstrated.
 
-Phase 8 is complete (all 182 tests passing). Phase 9 stages in order:
-
-1. **8a** `src/forth.s` — `find_by_cord(uint64_t cord) → entry*` C-callable dict search by label cord
-2. **8b** `src/forth.s` — ABI bridge: `forth_call_jet(entry*, noun core, jets, sky) → noun`; DSP push/pop convention
-3. **8c** `src/ska.c` — extend `cook_find_jet`: check Forth dict via `find_by_cord` before `hot_state[]`
-4. **8d** `src/ska.c` / `src/forth.s` — `.SKA` prints Forth word name at each jetted `%ds2` site
-5. **8e** `src/forth.s` — `forth_eval_string(src, len)`: C-callable Forth text evaluator with `setjmp` guard
-6. **8f** `src/nock.c` — `%tame` hint handler: parse `[label forth-source]`, idempotency guard, call `forth_eval_string`
-7. **8g** `src/ska.c` / `src/forth.s` — `TIMER@` + SKA formula cache + `BENCH` word
-
-**Phase 9** (after 7): Move Nock dispatch into Forth dictionary (see below).
+Next priorities:
+- **Test hardening**: remaining crash recovery sites, gate jet direct tests, control flow
+- **Phase 10**: North integration (pending external dependency)
+- **Phase 11**: SKA Phase 2 / full Hoon subset
+- **Phase 12**: Large atom cold store (SD card backing)
 
 ## SKA Layer Relationship
 
@@ -531,11 +526,11 @@ core = run_nomm1(subject, c_nomm1, ...)  // %ds2 already resolved to jet_fn_t
 | 5c | PILL loader (QEMU file loader at 0x10000000) | DONE |
 | 5d | Noun tag redesign (direct atom = raw integer) | DONE |
 | 7 | Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch | DONE |
-| CI | QEMU raspi4b + 158 REPL tests + 5 kernel boot tests | DONE |
-| 8 | SKA: symbolic partial eval, `$nomm` AST, compile-time jet matching | COMPLETE ✅ |
-| 9 | Forth as jet dashboard: evaluator dispatch in dictionary | TODO |
+| CI | QEMU raspi4b + 355 tests (REPL + Nock reference + crash recovery + hardening) | DONE |
+| 8 | SKA: symbolic partial eval, `$nomm` AST, compile-time jet matching | DONE |
+| 9 | Forth as jet dashboard: evaluator dispatch in dictionary | DONE |
 
-PoC gate: Phases 0-8. Phase 9 is "turning it into a live-patchable OS."
+PoC gate: Phases 0–9 all DONE. **355 tests passing.** Next: Phases 10+ (pending external deps).
 
 ## Key Source References in the Codebase
 

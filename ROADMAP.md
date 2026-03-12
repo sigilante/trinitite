@@ -73,7 +73,7 @@ Test count in the pass/fail summary updates automatically.
   (e.g. `%slog` = `1735355507`).
 - **One output per test**: each expression must print exactly one token followed by `ok`.
   Extra prints (e.g. from `%slog`) appear in QEMU output but are not matched by the parser.
-- **30-second timeout**: safety net; in practice the suite exits in ~3 seconds via the
+- **60-second timeout**: safety net; in practice the suite exits in ~5 seconds via the
   Ctrl-A X quit sequence after all tests complete.
 
 ---
@@ -140,8 +140,6 @@ Jets are keyed on **label cord atoms** (not battery hashes) and registered via `
 `%wild` cord = 1684826487. Gate convention: sample = `slot(6, core)`; binary args at
 `slot(12, core)` / `slot(13, core)`.
 
-**141 tests passing.**
-
 ### Phase 5d — Noun Tag Redesign
 
 New tagging scheme making direct atoms natural integers:
@@ -164,8 +162,6 @@ Atom store (ATOM_INDEX_BASE / ATOM_DATA_BASE) is now load-bearing:
 `HATOM` Forth word is now a no-op (atoms always content-addressed).
 Direct atom boundary raised from 2^62-1 to 2^63-1.
 
-**141 tests passing.**
-
 ### Phase 5e — Bignum Division and Modulo
 
 `bn_div(a, b)` = floor(a/b) and `bn_mod(a, b)` = a mod b in `src/bignum.c`.
@@ -177,8 +173,6 @@ Implementation:
 - Multi-limb: Knuth Algorithm D (TAOCP §4.3.1); `__int128_t` borrow tracking in D4/D5.
 - `divlu64(u1, u0, v, rem)`: restoring binary long division in 64 iterations,
   using only 64-bit ops. Avoids `__udivti3` (not available in freestanding libgcc).
-
-**157 tests passing.**
 
 ### Phase 5c — PILL: QEMU File Loader
 `PILL` Forth word loads a jammed atom from physical address `0x10000000`, placed there by
@@ -281,7 +275,7 @@ Arvo and Shrine shapes. CI: 158 REPL tests + 5 kernel boot integration tests all
 
 ### Phase 8 — SKA (Subject Knowledge Analysis)
 
-**STATUS: COMPLETE** — All stages 7a–7h done. 182 tests passing.
+**STATUS: COMPLETE** — All stages 7a–7h done.
 
 Reference implementation: [`dozreg-toplud/ska`](https://github.com/dozreg-toplud/ska) (Hoon).
 Paper: Afonin ~dozreg-toplud, UTJ vol. 3 issue 1.
@@ -428,6 +422,8 @@ Stage 9e is required for all tail-recursive Hoon gates (`dec`, `add`, etc.).
 
 ### Phase 9 — Forth as Jet Dashboard
 
+**STATUS: COMPLETE** — All stages 9a–9g done. 355 tests passing.
+
 Move Nock evaluator dispatch into the Forth dictionary.
 
 Each jet is a named Forth word. The `hot_state[]` C table becomes a Forth vocabulary.
@@ -530,15 +526,16 @@ the word will be present and cook pre-wires the jet at O(1).
 
 | Stage | File(s) | Content |
 |-------|---------|---------|
-| **9a** Dict lookup     | `src/forth.s` / `src/forth.h` | `find_by_cord(uint64_t cord) → entry*` exported as C-callable |
-| **9b** ABI bridge      | `src/forth.s` / `src/nock.h`  | `forth_call_jet(entry*, noun, jets, sky) → noun`; push/pop DSP convention |
-| **9c** cook_find_jet   | `src/ska.c`                   | Call `find_by_cord` before `hot_state[]`; wrap result in ABI bridge |
-| **9d** `.SKA` names    | `src/ska.c` / `src/forth.s`   | Print Forth word name at each jetted `%ds2` site in `.SKA` output |
-| **9e** `forth_eval_string` | `src/forth.s`             | C-callable Forth text evaluator; saves/restores TIB, STATE, HERE; runs WORD→FIND→EXECUTE loop; `setjmp` guard on parse error |
-| **9f** `%tame` handler | `src/nock.c`                  | Parse `[label forth-source]` clue, idempotency guard, call `forth_eval_string` |
-| **9g** Cache + bench   | `src/ska.c` / `src/forth.s`   | `TIMER@` (`mrs CNTVCT_EL0`); SKA formula cache (nomm1_t* keyed by formula noun); `BENCH` word; `EXECUTE` word |
+| **9a** Dict lookup     | `src/forth.s` / `src/forth.h` | ✅ `find_by_cord(uint64_t cord) → entry*` exported as C-callable |
+| **9b** ABI bridge      | `src/forth.s` / `src/nock.h`  | ✅ `forth_call_jet(entry*, noun, jets, sky) → noun`; push/pop DSP convention |
+| **9c** cook_find_jet   | `src/ska.c`                   | ✅ Call `find_by_cord` before `hot_state[]`; wrap result in ABI bridge |
+| **9d** `.SKA` names    | `src/ska.c` / `src/forth.s`   | ✅ Print Forth word name at each jetted `%ds2` site in `.SKA` output |
+| **9e** `forth_eval_string` | `src/forth.s`             | ✅ C-callable Forth text evaluator; saves/restores TIB, STATE, HERE; runs WORD→FIND→EXECUTE loop; `setjmp` guard on parse error |
+| **9f** `%tame` handler | `src/nock.c`                  | ✅ Parse `[label forth-source]` clue, idempotency guard, call `forth_eval_string` |
+| **9g** Cache + bench   | `src/ska.c` / `src/forth.s`   | ✅ `TIMER@` (`mrs CNTVCT_EL0`); SKA formula cache (nomm1_t* keyed by formula noun); `BENCH` word; `EXECUTE` word |
 
-**Prerequisites**: Phase 8 COMPLETE ✅ — all 182 tests passing.
+**All stages complete.** 355 tests passing (63 Nock reference vectors, 20 crash recovery,
+20 Forth primitives, 10 indirect atom hardening, plus existing regression suite).
 
 #### Key Design Decisions
 
