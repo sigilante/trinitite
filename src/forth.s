@@ -2059,6 +2059,267 @@ quit_word_loop:
 defcode "_QR", 3, quit_resume, F_HIDDEN
     b       quit_word_loop
 
+// ── EVAL ( c-addr u -- ) ─────────────────────────────────────────────────────
+// Evaluate a string of Forth source in the current dictionary context.
+// Saves TIB/#TIB/>IN, installs the source, runs the token loop, restores.
+// Uses RSP (Forth return stack) to save/restore the caller's IP — same pattern
+// as DOCOL/EXIT.  Nesting: not safe for re-entrant use (single BSS save area).
+//
+// Error handling: unknown word → nock_crash() → longjmp back to QUIT.
+// ─────────────────────────────────────────────────────────────────────────────
+defcode "EVAL", 4, eval_word, 0
+    ldr     x1, [DSP], #8               // u  (len)
+    ldr     x0, [DSP], #8               // c-addr
+
+    // Save caller's IP on return stack (mirrors DOCOL).
+    str     IP, [RSP, #-8]!
+
+    // Save TIB (256 bytes) to BSS buffer
+    ldr     x3, =eval_tib_save
+    ldr     x4, =TIB_BASE
+    mov     x5, #(TIB_SIZE / 16)        // 16 iterations × 16 bytes
+.Lev_tib_save:
+    ldp     x6, x7, [x4], #16
+    stp     x6, x7, [x3], #16
+    subs    x5, x5, #1
+    bne     .Lev_tib_save
+
+    // Save #TIB and >IN
+    ldr     x3, =word_ntib + 32
+    ldr     x5, [x3]
+    ldr     x4, =eval_ntib_save
+    str     x5, [x4]
+    ldr     x3, =word_toin + 32
+    ldr     x5, [x3]
+    ldr     x4, =eval_toin_save
+    str     x5, [x4]
+
+    // Copy source into TIB (x0=src, x1=len; clamp to TIB_SIZE-1)
+    ldr     x3, =TIB_BASE
+    cmp     x1, #(TIB_SIZE - 1)
+    blt     1f
+    mov     x1, #(TIB_SIZE - 1)
+1:  mov     x5, #0
+.Lev_copy:
+    cmp     x5, x1
+    bge     .Lev_copy_done
+    ldrb    w6, [x0, x5]
+    strb    w6, [x3, x5]
+    add     x5, x5, #1
+    b       .Lev_copy
+.Lev_copy_done:
+    strb    wzr, [x3, x5]               // null-terminate (defensive)
+
+    // Set #TIB = len, >IN = 0
+    ldr     x3, =word_ntib + 32
+    str     x1, [x3]
+    ldr     x3, =word_toin + 32
+    str     xzr, [x3]
+
+    // Fall into eval token loop
+eval_word_loop:
+    // Parse next space-delimited token from TIB
+    ldr     x0, =word_toin + 32
+    ldr     x1, [x0]
+    ldr     x2, =word_ntib + 32
+    ldr     x2, [x2]
+    ldr     x3, =TIB_BASE
+
+    // Skip leading spaces
+.Lev_skip:
+    cmp     x1, x2
+    bge     .Lev_exhausted              // all tokens consumed
+    ldrb    w4, [x3, x1]
+    cmp     w4, #' '
+    bne     .Lev_collect
+    add     x1, x1, #1
+    b       .Lev_skip
+
+    // Collect non-space chars into token buffer at HERE
+.Lev_collect:
+    ldr     x5, =word_here + 32
+    ldr     x5, [x5]
+    mov     x6, #0
+.Lev_coll:
+    cmp     x1, x2
+    bge     .Lev_colldone
+    ldrb    w4, [x3, x1]
+    cmp     w4, #' '
+    beq     .Lev_colldone
+    strb    w4, [x5, x6]
+    add     x1, x1, #1
+    add     x6, x6, #1
+    b       .Lev_coll
+.Lev_colldone:
+    ldr     x0, =word_toin + 32
+    str     x1, [x0]
+    // x5 = token addr, x6 = token len
+
+    // Dictionary lookup
+    ldr     x0, =word_latest + 32
+    ldr     x0, [x0]
+.Lev_find:
+    cbz     x0, .Lev_number
+    ldr     x1, [x0, #8]               // flags|len
+    and     x2, x1, #(F_HIDDEN << 8)
+    cbnz    x2, .Lev_fnext
+    and     x2, x1, #0xFF              // name length
+    cmp     x2, x6
+    bne     .Lev_fnext
+    add     x3, x0, #16                // name field
+    mov     x4, #0
+.Lev_fcmp:
+    cmp     x4, x6
+    bge     .Lev_found
+    ldrb    w7, [x5, x4]
+    ldrb    w8, [x3, x4]
+    cmp     w7, w8
+    bne     .Lev_fnext
+    add     x4, x4, #1
+    b       .Lev_fcmp
+.Lev_fnext:
+    ldr     x0, [x0]
+    ldr     x3, =TIB_BASE
+    b       .Lev_find
+
+    // Word found
+.Lev_found:
+    ldr     x1, [x0, #8]
+    and     x2, x1, #(F_IMMEDIATE << 8)
+    cbnz    x2, .Lev_execute
+    ldr     x1, =word_state + 32
+    ldr     x1, [x1]
+    cbnz    x1, .Lev_compile
+
+.Lev_execute:
+    mov     W, x0
+    ldr     x0, =trampoline_eval        // our trampoline, not trampoline_quit
+    mov     IP, x0
+    ldr     x0, [W, #24]
+    br      x0
+
+.Lev_compile:
+    ldr     x1, =word_here + 32
+    ldr     x2, [x1]
+    str     x0, [x2]
+    add     x2, x2, #8
+    str     x2, [x1]
+    b       eval_word_loop
+
+    // Try as number (mirrors QUIT's .Lq_number)
+.Lev_number:
+    ldr     x0, =word_base + 32
+    ldr     x0, [x0]
+    ldrb    w1, [x5]
+    mov     x9, #0
+    cmp     w1, #'-'
+    bne     .Lev_numparse
+    mov     x9, #1
+    add     x5, x5, #1
+    sub     x6, x6, #1
+    cbz     x6, .Lev_error
+.Lev_numparse:
+    mov     x3, #0
+    mov     x4, #0
+.Lev_numloop:
+    cmp     x4, x6
+    bge     .Lev_numok
+    ldrb    w1, [x5, x4]
+    cmp     w1, #'0'
+    blt     .Lev_error
+    cmp     w1, #'9'
+    ble     .Lev_numdec
+    cmp     w1, #'A'
+    blt     .Lev_error
+    cmp     w1, #'F'
+    ble     .Lev_numupp
+    cmp     w1, #'a'
+    blt     .Lev_error
+    cmp     w1, #'f'
+    bgt     .Lev_error
+    sub     w1, w1, #('a' - 10)
+    b       .Lev_numdig
+.Lev_numupp:
+    sub     w1, w1, #('A' - 10)
+    b       .Lev_numdig
+.Lev_numdec:
+    sub     w1, w1, #'0'
+.Lev_numdig:
+    cmp     x1, x0
+    bge     .Lev_error
+    mul     x3, x3, x0
+    add     x3, x3, x1
+    add     x4, x4, #1
+    b       .Lev_numloop
+.Lev_numok:
+    cbnz    x9, 1f
+    b       2f
+1:  neg     x3, x3
+2:
+    ldr     x1, =word_state + 32
+    ldr     x1, [x1]
+    cbz     x1, .Lev_push
+    ldr     x1, =word_here + 32
+    ldr     x2, [x1]
+    ldr     x4, =word_lit
+    str     x4, [x2]
+    add     x2, x2, #8
+    str     x3, [x2]
+    add     x2, x2, #8
+    str     x2, [x1]
+    b       eval_word_loop
+.Lev_push:
+    str     x3, [DSP, #-8]!
+    b       eval_word_loop
+
+    // Error: restore TIB then crash (longjmps to QUIT restart)
+.Lev_error:
+    b       .Lev_restore                // restore, then fall into crash path
+
+    // Source exhausted: restore TIB and return to caller
+.Lev_exhausted:
+    // clear error flag in x9 (reuse path joins here from .Lev_error)
+    mov     x9, #0
+    b       .Lev_do_restore
+.Lev_restore:
+    mov     x9, #1                      // error = true
+.Lev_do_restore:
+    // Restore TIB from BSS buffer
+    ldr     x3, =eval_tib_save
+    ldr     x4, =TIB_BASE
+    mov     x5, #(TIB_SIZE / 16)
+.Lev_tib_restore:
+    ldp     x6, x7, [x3], #16
+    stp     x6, x7, [x4], #16
+    subs    x5, x5, #1
+    bne     .Lev_tib_restore
+
+    // Restore #TIB and >IN
+    ldr     x3, =eval_ntib_save
+    ldr     x5, [x3]
+    ldr     x3, =word_ntib + 32
+    str     x5, [x3]
+    ldr     x3, =eval_toin_save
+    ldr     x5, [x3]
+    ldr     x3, =word_toin + 32
+    str     x5, [x3]
+
+    // Restore caller's IP from return stack (mirrors EXIT)
+    ldr     IP, [RSP], #8
+
+    cbz     x9, 1f
+    // Error path: crash (triggers longjmp to QUIT)
+    ldr     x0, =str_eval_err
+    bl      uart_puts
+    ldr     x0, =nock_abort
+    mov     x1, #1
+    bl      longjmp
+1:  NEXT
+
+// Hidden word: resume eval token loop after a word executes
+defcode "_ER", 3, eval_resume, F_HIDDEN
+    b       eval_word_loop
+
 // ── Phase 6 — Kernel Loop ─────────────────────────────────────────────────
 
 // KSHAPE  ( -- addr )   kernel shape: 0=Arvo 1=Shrine
@@ -2120,6 +2381,21 @@ defcode "KERNEL", 6, kernel, 0
 trampoline_quit:
     .quad   word_quit_resume
 
+// Trampoline for EVAL: after each word executes, NEXT dispatches here
+// which jumps back to eval_word_loop.
+trampoline_eval:
+    .quad   word_eval_resume
+
+// Fake dict entry + trampoline for forth_eval_string C return path.
+    .balign 8
+eval_return_entry:
+    .quad   0                          // link = NULL (not in dict chain)
+    .quad   0                          // flags|len = 0
+    .quad   0                          // name = empty
+    .quad   eval_return_code           // codeword → eval_return_code in .text
+eval_return_trampoline:
+    .quad   eval_return_entry
+
 // Fake dictionary entry for the jet call return stub.
 // Layout matches the standard header: link(8)+flags|len(8)+name(8)+codeword(8).
 // Not in the dictionary chain (link=0); codeword points to jet_return_code.
@@ -2143,6 +2419,13 @@ trampoline_jet:
     .bss
     .balign 8
 jet_ctx_sp:     .skip 8                 // saved C stack pointer during forth_call_jet
+
+// ─── BSS: mutable state for EVAL / forth_eval_string ─────────────────────────
+    .balign 8
+eval_tib_save:  .skip 256               // saved TIB contents
+eval_ntib_save: .skip 8                 // saved #TIB
+eval_toin_save: .skip 8                 // saved >IN
+eval_ctx_sp:    .skip 8                 // saved C stack pointer during forth_eval_string
 
     .text
     .balign 4
@@ -2230,6 +2513,58 @@ jet_return_code:
     add     sp, sp, #96
     ret
 
+// ─── forth_eval_string ────────────────────────────────────────────────────────
+// extern int forth_eval_string(const char *src, size_t len);
+//   Returns 0 on success; the error path longjmps to nock_abort (QUIT restart).
+//
+// This bridges from C into the Forth EVAL defcode.  We push (src, len) onto the
+// Forth data stack, save all C callee-saved + Forth machine regs, set IP to
+// eval_return_trampoline, and dispatch EVAL's codeword via `br` (not `blr`).
+// EVAL's NEXT ultimately dispatches eval_return_code which restores everything.
+// ─────────────────────────────────────────────────────────────────────────────
+    .global forth_eval_string
+    .type   forth_eval_string, @function
+forth_eval_string:                      // x0 = src, x1 = len
+    sub     sp, sp, #96
+    stp     x19, x20, [sp, #0]
+    stp     x21, x22, [sp, #16]
+    stp     x23, x24, [sp, #32]
+    stp     x25, x26, [sp, #48]
+    stp     x27, x28, [sp, #64]
+    stp     x29, x30, [sp, #80]
+    ldr     x4, =eval_ctx_sp
+    mov     x5, sp
+    str     x5, [x4]                   // save C sp for eval_return_code
+
+    // Push src (c-addr) then len (u) onto Forth data stack
+    str     x0, [DSP, #-8]!            // c-addr
+    str     x1, [DSP, #-8]!            // u  (TOS)
+
+    // Set IP to point to eval_return_trampoline so that NEXT after EVAL returns
+    // to eval_return_code.
+    ldr     IP, =eval_return_trampoline
+
+    // Dispatch EVAL's codeword (W = word_eval_word)
+    ldr     W, =word_eval_word
+    ldr     x0, [W, #24]
+    br      x0
+
+// Called by EVAL's NEXT at exhaustion when entered from forth_eval_string.
+// Restores C context and returns 0.
+eval_return_code:
+    ldr     x1, =eval_ctx_sp
+    ldr     x2, [x1]
+    mov     sp, x2
+    mov     x0, #0                     // success
+    ldp     x19, x20, [sp, #0]
+    ldp     x21, x22, [sp, #16]
+    ldp     x23, x24, [sp, #32]
+    ldp     x25, x26, [sp, #48]
+    ldp     x27, x28, [sp, #64]
+    ldp     x29, x30, [sp, #80]
+    add     sp, sp, #96
+    ret
+
 // printhex64 ( x0 = value ) — print 16 hex digits to UART
 // Clobbers x0-x4. Uses standard C ABI (bl/ret).
 printhex64:
@@ -2299,6 +2634,9 @@ str_prompt_end:
 str_err:
     .ascii  " ?\r\n"
 str_err_end:
+
+str_eval_err:
+    .asciz  "EVAL error\r\n"
 
 // ═════════════════════════════════════════════════════════════════════════════
 // COLD START

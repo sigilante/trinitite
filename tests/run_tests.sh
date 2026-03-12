@@ -577,6 +577,12 @@ T "ska-enable: NOCK disabled again works"  "0000000000000005" \
 T "dotska: no crash on simple formula"  "000000000000002A" \
     "0 N>N  0 N>N 1 N>N CONS  .SKA  42 N>N ."
 
+# ── Phase 9e — EVAL word ──────────────────────────────────────────────────────
+# EVAL ( c-addr u -- ) evaluates a string of Forth source.
+# Smoke test: evaluate the empty string — save/restore TIB and return cleanly.
+T "eval: empty string noop"  "000000000000002A" \
+    "TIB 0 EVAL  42 ."
+
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
 for line in "${TLINES[@]}"; do
