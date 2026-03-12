@@ -58,6 +58,8 @@ PREAMBLE=': N>N >NOUN ;
 : JD 1 N>N SWAP CONS 2 N>N SWAP CONS 9 N>N SWAP CONS ;
 : JWRAP SWAP 1 N>N 0 N>N CONS CONS 0 N>N CONS 1 N>N SWAP CONS 1684826487 N>N SWAP CONS SWAP CONS 11 N>N SWAP CONS ;
 : NOOP ;
+: MAXD 9223372036854775807 N>N ;
+: I63 MAXD 4 N>N 0 N>N 1 N>N CONS CONS NOCK ;
 HERE @ DUP SCORD ! 80 + HERE !
 SCORD @ 6144071398889562170 SWAP !
 SCORD @ 8 + 5714573285181694032 SWAP !
@@ -295,52 +297,52 @@ T "cell: ATOM? false"           "0000000000000000" \
 T "direct: CELL? false"         "0000000000000000" \
     "42 N>N  CELL? ."
 # Large direct atom tests (values around 2^62; all still direct since bit63=0)
-# 2^62-1 = 4611686018427387903  (large direct atom, NOT the indirect boundary)
-# 2^62-2 = 4611686018427387902
-#
-# inc at 2^62-1: result = 2^62, still a direct atom (bit63=0); ATOM? → true
-T "bn_inc: boundary → atom"     "FFFFFFFFFFFFFFFF" \
+# All values here are around 2^62 and 2^62+1 — still DIRECT atoms (bit63=0).
+# The real direct→indirect boundary is 2^63-1 → 2^63.
+# 2^62-1 = 4611686018427387903  2^62-2 = 4611686018427387902
+
+# inc(2^62-1) = 2^62 — still a direct atom (bit63=0); ATOM? → true
+T "bn_inc: 2^62 still direct"   "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK ATOM? ."
-# two independent increments of same maxval are noun-equal
-T "bn_inc: eq same boundary"    "0000000000000000" \
+# two independent inc(2^62-1) are noun-equal
+T "bn_inc: eq 2^62 direct"      "0000000000000000" \
     "0 N>N  5 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
-# increments of different values are not equal
-T "bn_inc: neq diff boundary"   "0000000000000001" \
+# inc(2^62-1) ≠ inc(2^62-2)
+T "bn_inc: neq 2^62 vs 2^62-2"  "0000000000000001" \
     "0 N>N  5 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  4 N>N 1 N>N 4611686018427387902 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
-# double increment of indirect atom: still an atom
-T "bn_inc: indirect → atom"     "FFFFFFFFFFFFFFFF" \
+# inc(inc(2^62-1)) = 2^62+1 — still direct; ATOM? → true
+T "bn_inc: 2^62+1 still direct" "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  CONS  NOCK ATOM? ."
-# double increment equality: two independent double-incs are equal
-T "bn_inc: eq double indirect"  "0000000000000000" \
+# two independent double-incs of 2^62-1 are equal
+T "bn_inc: eq 2^62+1 direct"    "0000000000000000" \
     "0 N>N  5 N>N  4 N>N 4 N>N 1 N>N 4611686018427387903 N>N CONS CONS CONS  4 N>N 4 N>N 1 N>N 4611686018427387903 N>N CONS CONS CONS  CONS CONS  NOCK NOUN> ."
 
 # ── Phase 4b: BLAKE3 hashing and HATOM word ──────────────────────────────
 # Official test vectors (input[i]=i%251, lens 0,1,63,64,65,1024,1025)
 T "blake3: official vectors"    "0000000000000001" "B3OK ."
-# HATOM on a direct atom is a no-op; still an atom
-T "hash_atom: direct is atom"   "FFFFFFFFFFFFFFFF" \
+# HATOM is a no-op in the current content-addressed scheme; atoms pass through
+T "hatom: direct atom passes"   "FFFFFFFFFFFFFFFF" \
     "42 N>N HATOM ATOM? ."
-# HATOM on indirect atom (2^62) still yields an atom
-T "hash_atom: indirect is atom" "FFFFFFFFFFFFFFFF" \
+# HATOM on 2^62 (direct atom) still an atom
+T "hatom: 2^62 passes"          "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK HATOM ATOM? ."
-# Two independently computed 2^62 atoms hash to identical prefix → =NOUN true
-T "hash_atom: equal same value" "FFFFFFFFFFFFFFFF" \
+# Two independently computed 2^62 atoms are equal (content addressing)
+T "hatom: eq same value"        "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK HATOM \
      0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK HATOM \
      =NOUN ."
-# 2^62 vs 2^62+1 — different values → =NOUN false (0)
-T "hash_atom: unequal values"   "0000000000000000" \
+# 2^62 ≠ 2^62+1
+T "hatom: neq different"        "0000000000000000" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK HATOM \
      0 N>N  4 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS CONS  NOCK HATOM \
      =NOUN ."
 
 # ── Phase 4c: bignum arithmetic and decimal I/O ───────────────────────────
-# bn_dec: decrement indirect atom 2^62 → 2^62-1 (direct) → ATOM? true
-# Compute 2^62 via Nock op4 on (2^62-1), then BNDEC, check ATOM?
-T "bn_dec: indirect→direct"    "FFFFFFFFFFFFFFFF" \
+# BNDEC on a large DIRECT atom (2^62): result 2^62-1 also direct
+T "bn_dec: 2^62 direct both"    "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK  BNDEC ATOM? ."
-# bn_dec of 2^62 → 2^62-1 (direct atom); NOUN> should yield 4611686018427387903
-T "bn_dec: value correct"      "3FFFFFFFFFFFFFFF" \
+# NOUN> of 2^62-1 (direct) = 0x3FFFFFFFFFFFFFFF
+T "bn_dec: 2^62 value"          "3FFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK  BNDEC NOUN> ."
 # bn_add: 2 + 3 = 5 (direct + direct)
 T "bn_add: 2+3=5"              "0000000000000005" \
@@ -348,32 +350,67 @@ T "bn_add: 2+3=5"              "0000000000000005" \
 # bn_add: 0 + 0 = 0
 T "bn_add: 0+0=0"              "0000000000000000" \
     "0 N>N  0 N>N  BN+ NOUN> ."
-# bn_add: (2^62-1) + 1 = 2^62 (indirect atom); ATOM? true
-T "bn_add: boundary to indirect" "FFFFFFFFFFFFFFFF" \
+# bn_add: (2^62-1) + 1 = 2^62 (direct atom: bit63=0)
+T "bn_add: 2^62-1+1=2^62 direct" "FFFFFFFFFFFFFFFF" \
     "4611686018427387903 N>N  1 N>N  BN+ ATOM? ."
-# bn_add: 2^62 + 2^62 = 2^63 (indirect); ATOM? true
-T "bn_add: 2^62+2^62 indirect"  "FFFFFFFFFFFFFFFF" \
+# bn_add: 2^62 + 2^62 = 2^63 (FIRST actual indirect atom: bit63=1)
+T "bn_add: 2^62+2^62=2^63 indirect"  "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK \
      0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK \
      BN+ ATOM? ."
-# bn_dec after bn_add roundtrip: (2^62 + 2^62) - 1 = 2^63-1; ATOM? true
+# BNDEC on actual indirect atom (2^63): result = 2^63-1 (direct, bit63=0)
+T "bn_dec: 2^63 indirect→direct" "FFFFFFFFFFFFFFFF" \
+    "I63  BNDEC  ATOM? ."
+T "bn_dec: 2^63 value"          "7FFFFFFFFFFFFFFF" \
+    "I63  BNDEC  NOUN> ."
+# bn_add roundtrip: (2^62 + 2^62) - 1 = 2^63-1 (direct); ATOM? → true
 T "bn_add/dec roundtrip"        "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK \
      0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK \
      BN+  BNDEC ATOM? ."
 
+# ── Indirect atom arithmetic (operands ≥ 2^63) ───────────────────────────
+# I63 helper = INC(2^63-1) = 2^63 (first indirect atom, bits63:62=10)
+
+# BN+: indirect + direct → indirect
+T "bn_add: indirect+direct atom" "FFFFFFFFFFFFFFFF" \
+    "I63  1 N>N  BN+ ATOM? ."
+TD "bn_add: indirect+direct value" "9223372036854775809" \
+    "I63  1 N>N  BN+ N."
+
+# BN+: indirect + indirect → multi-limb indirect (2^64)
+T "bn_add: 2^63+2^63 atom"     "FFFFFFFFFFFFFFFF" \
+    "I63  I63  BN+ ATOM? ."
+TD "bn_add: 2^63+2^63=2^64"    "18446744073709551616" \
+    "I63  I63  BN+ N."
+# verify 2^63+2^63 == bex(64)
+T "bn_add: 2^63+2^63=bex(64)"  "FFFFFFFFFFFFFFFF" \
+    "I63  I63  BN+  64 BNBEX  =NOUN ."
+
+# BNDEC on multi-limb: 2^64 → 2^64-1
+TD "bn_dec: 2^64→2^64-1"       "18446744073709551615" \
+    "I63  I63  BN+  BNDEC  N."
+
+# BNMUL: indirect × direct → multi-limb (2^63 × 2 = 2^64)
+T "bn_mul: 2^63*2 atom"        "FFFFFFFFFFFFFFFF" \
+    "I63  2 N>N  BNMUL  ATOM? ."
+T "bn_mul: 2^63*2=bex(64)"     "FFFFFFFFFFFFFFFF" \
+    "I63  2 N>N  BNMUL  64 BNBEX  =NOUN ."
+
+# BNDIV: multi-limb ÷ indirect (2^64 ÷ 2^63 = 2)
+T "bn_div: 2^64/2^63=2"        "0000000000000002" \
+    "I63  I63  BN+  I63  BNDIV  NOUN> ."
+
 # N. decimal output tests (TD captures decimal strings)
 TD "N.: zero"                  "0"                    "0 N>N N."
 TD "N.: small decimal"         "42"                   "42 N>N N."
 TD "N.: 2^62-1 direct"         "4611686018427387903"  "4611686018427387903 N>N N."
-# N. on indirect atom 2^62 (result of bn_inc at boundary)
-TD "N.: 2^62 indirect"         "4611686018427387904" \
+# N. on 2^62 (direct atom, created via INC(2^62-1))
+TD "N.: 2^62 direct"           "4611686018427387904" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK  N."
-# N. on 2^62 + 2^62 = 2^63
-TD "N.: 2^63"                  "9223372036854775808" \
-    "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK \
-     0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK \
-     BN+  N."
+# N. on 2^63 (first real indirect atom, via I63 helper)
+TD "N.: 2^63 indirect"         "9223372036854775808" \
+    "I63  N."
 
 # ── Phase 4d: bit ops, shifts, multiply ───────────────────────────────────
 # bn_met (result is raw integer, use .)
