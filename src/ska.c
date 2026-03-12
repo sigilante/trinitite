@@ -1502,15 +1502,13 @@ boil_t *ska_analyze(noun subject, noun formula,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 8g — ska_print_stats: analysis dashboard (.SKA Forth word)
+ * Stage 9d — ska_print_stats: analysis dashboard (.SKA Forth word)
  *
- * Walks the cooked nomm1_t tree and counts:
- *   total   — NOMM_2 nodes (all call sites)
- *   direct  — NOMM_2 nodes with has_bell (formula statically known)
- *   jetted  — NOMM_2 nodes with jet != NULL (pre-wired at cook time)
- *
- * Prints one line to UART:  "SKA: N call sites (D direct, J jetted)"
- * where N, D, J are printed as decimal integers.
+ * Walks the cooked nomm1_t tree and prints:
+ *   SKA: N call sites (D direct, J jetted)
+ *   followed by one line per jetted site showing the jet name:
+ *     Forth:NAME  — Forth dictionary entry (live-patchable)
+ *     C:NAME      — static hot_state[] C jet
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 static void ska_udec(uint32_t v)
@@ -1520,6 +1518,16 @@ static void ska_udec(uint32_t v)
     int  i = 0;
     while (v > 0) { buf[i++] = '0' + (v % 10); v /= 10; }
     while (i > 0) uart_putc(buf[--i]);
+}
+
+/* Print a cord (LE-packed ASCII) as a plain string. */
+static void print_cord(uint64_t cord)
+{
+    for (int i = 0; i < 8; i++) {
+        uint8_t c = (uint8_t)(cord >> (i * 8));
+        if (!c) break;
+        uart_putc(c);
+    }
 }
 
 static void count_sites_r(const nomm1_t *n, int *total, int *direct, int *jetted)
@@ -1550,7 +1558,7 @@ static void count_sites_r(const nomm1_t *n, int *total, int *direct, int *jetted
     case NOMM_2:
         (*total)++;
         if (n->n2.has_bell) (*direct)++;
-        if (n->n2.jet != NULL) (*jetted)++;
+        if (n->n2.jet != NULL || n->n2.forth_jet != NULL) (*jetted)++;
         count_sites_r(n->n2.p, total, direct, jetted);
         if (n->n2.q) count_sites_r(n->n2.q, total, direct, jetted);
         return;
@@ -1575,6 +1583,74 @@ static void count_sites_r(const nomm1_t *n, int *total, int *direct, int *jetted
     }
 }
 
+/* Walk the cooked AST and print one line per call site. */
+static void print_sites_r(const nomm1_t *n, int *idx)
+{
+    if (!n) return;
+    switch (n->tag) {
+    case NOMM_0: case NOMM_1: return;
+    case NOMM_3: case NOMM_4:
+        print_sites_r(n->n_unary.p, idx);
+        return;
+    case NOMM_5:
+        print_sites_r(n->n5.p, idx);
+        print_sites_r(n->n5.q, idx);
+        return;
+    case NOMM_6:
+        print_sites_r(n->n6.c, idx);
+        print_sites_r(n->n6.y, idx);
+        print_sites_r(n->n6.n, idx);
+        return;
+    case NOMM_7:
+        print_sites_r(n->n7.p, idx);
+        print_sites_r(n->n7.q, idx);
+        return;
+    case NOMM_8:
+        print_sites_r(n->n8.p, idx);
+        print_sites_r(n->n8.q, idx);
+        return;
+    case NOMM_2: {
+        uart_puts("  [");
+        ska_udec((uint32_t)(*idx)++);
+        uart_puts("] ");
+        if (n->n2.forth_jet) {
+            uart_puts("Forth:");
+            print_cord(dict_entry_name(n->n2.forth_jet));
+        } else if (n->n2.jet) {
+            uart_puts("C:");
+            uint64_t lbl = hot_reverse_label(n->n2.jet);
+            if (lbl) print_cord(lbl); else uart_puts("?");
+        } else if (n->n2.has_bell) {
+            uart_puts("direct");
+        } else {
+            uart_puts("indirect");
+        }
+        uart_putc('\n');
+        print_sites_r(n->n2.p, idx);
+        if (n->n2.q) print_sites_r(n->n2.q, idx);
+        return;
+    }
+    case NOMM_10:
+        print_sites_r(n->n10.val_fol, idx);
+        print_sites_r(n->n10.tgt_fol, idx);
+        return;
+    case NOMM_11:
+        if (n->n11.is_dyn && n->n11.clue)
+            print_sites_r(n->n11.clue, idx);
+        print_sites_r(n->n11.main, idx);
+        return;
+    case NOMM_12:
+        print_sites_r(n->n12.ref_fol, idx);
+        print_sites_r(n->n12.thunk_fol, idx);
+        return;
+    case NOMM_DIST:
+        print_sites_r(n->ndist.p, idx);
+        print_sites_r(n->ndist.q, idx);
+        return;
+    default: return;
+    }
+}
+
 void ska_print_stats(noun subject, noun formula)
 {
     boil_t *boil = ska_analyze(subject, formula, NULL, NULL);
@@ -1593,4 +1669,8 @@ void ska_print_stats(noun subject, noun formula)
     uart_puts(" direct, ");
     ska_udec(jetted);
     uart_puts(" jetted)\n");
+    if (total > 0) {
+        int idx = 0;
+        print_sites_r(boil->entry, &idx);
+    }
 }

@@ -24,6 +24,12 @@ typedef struct dict_entry dict_entry_t;
  * Returns the entry pointer, or NULL if not found / F_HIDDEN. */
 extern dict_entry_t *find_by_cord(uint64_t cord);
 
+/* Return the name cord of a dictionary entry (offset 16, 8-byte LE).
+ * Useful for printing jet names in the SKA dashboard. */
+static inline uint64_t dict_entry_name(const dict_entry_t *e) {
+    return *(const uint64_t *)((const uint8_t *)e + 16);
+}
+
 /* Call a Forth dictionary word as a Nock jet.
  * Pushes core onto the Forth data stack, dispatches to the word's
  * codeword via the jet trampoline, pops and returns the result.

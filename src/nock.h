@@ -67,6 +67,13 @@ noun nock_op9_continue(noun core, noun ax,
 jet_fn_t hot_lookup(noun label);
 
 /*
+ * hot_reverse_label: given a jet function pointer, return its label cord.
+ * Returns 0 if not found.  Used by ska_print_stats (Stage 9d) to print
+ * the name of a C hot_state jet at a jetted call site.
+ */
+uint64_t hot_reverse_label(jet_fn_t fn);
+
+/*
  * sock_match: structural pattern match against a (cape, data, subject) triple.
  *   cape == 0 (& / NOUN_YES) → exact match: noun_eq(data, subject) required
  *   cape == 1 (| / NOUN_NO)  → wildcard: always matches

@@ -227,6 +227,14 @@ jet_fn_t hot_lookup(noun label) {
     return NULL;
 }
 
+uint64_t hot_reverse_label(jet_fn_t fn) {
+    for (int i = 0; hot_state[i].fn != NULL; i++) {
+        if (hot_state[i].fn == fn)
+            return hot_state[i].label_cord;
+    }
+    return 0;
+}
+
 /* ── Hax  (#[axis val target]) ──────────────────────────────────────────── */
 
 /*
