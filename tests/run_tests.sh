@@ -832,6 +832,260 @@ T "9g: BENCH returns ticks>0" "FFFFFFFFFFFFFFFF" \
 # Use op1 (quote): *[s [1 42]] = 42 regardless of subject
 T "9g: SKNOCK cached formula" "000000000000002A" \
     "0 N>N  1 N>N 42 N>N CONS  SKNOCK  NOUN> ."
+
+# ── Crash Recovery Hardening ───────────────────────────────────────────────
+# Each BEFORE triggers a nock_crash → longjmp, the T after verifies the REPL
+# recovers cleanly. Covers all nock_crash() sites in nock.c.
+
+# -- Nock structural crashes --
+BEFORE "1 N>N  NOCK DROP"
+T "crash: nock atom"             "000000000000002A" "42 ."
+BEFORE "42 N>N  9223372036854775808 N>N  NOCK DROP"
+T "crash: opcode not direct"     "000000000000002A" "42 ."
+
+# -- Op 2 crashes --
+BEFORE "42 N>N  2 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op2 tail not cell"     "000000000000002A" "42 ."
+
+# -- Op 4 crash --
+BEFORE "1 N>N  2 N>N  CONS  4 N>N  0 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op4 inc cell"          "000000000000002A" "42 ."
+
+# -- Op 5 crash --
+BEFORE "42 N>N  5 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op5 tail not cell"     "000000000000002A" "42 ."
+
+# -- Op 6 crashes --
+BEFORE "42 N>N  6 N>N  1 N>N  0 N>N  CONS  CONS  NOCK DROP"
+T "crash: op6 tail not cell"     "000000000000002A" "42 ."
+BEFORE "42 N>N  6 N>N  1 N>N  0 N>N  CONS  1 N>N  1 N>N  CONS  CONS  CONS  NOCK DROP"
+T "crash: op6 missing branches"  "000000000000002A" "42 ."
+BEFORE "42 N>N  6 N>N  1 N>N  2 N>N  CONS  1 N>N  1 N>N  CONS  1 N>N  2 N>N  CONS  CONS  CONS  CONS  NOCK DROP"
+T "crash: op6 non-boolean cond"  "000000000000002A" "42 ."
+
+# -- Op 7 crash --
+BEFORE "42 N>N  7 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op7 tail not cell"     "000000000000002A" "42 ."
+
+# -- Op 8 crash --
+BEFORE "42 N>N  8 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op8 tail not cell"     "000000000000002A" "42 ."
+
+# -- Op 9 crash --
+BEFORE "42 N>N  9 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op9 tail not cell"     "000000000000002A" "42 ."
+
+# -- Op 10 crashes --
+BEFORE "42 N>N  10 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op10 tail not cell"    "000000000000002A" "42 ."
+
+# -- Op 11 crash --
+BEFORE "42 N>N  11 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "crash: op11 tail not cell"    "000000000000002A" "42 ."
+
+# -- Slot crashes (via Nock op 0) --
+BEFORE "42 N>N  0 N>N  0 N>N  CONS  NOCK DROP"
+T "crash: slot axis 0"           "000000000000002A" "42 ."
+BEFORE "42 N>N  0 N>N  2 N>N  CONS  NOCK DROP"
+T "crash: slot in atom"          "000000000000002A" "42 ."
+
+# -- Unimplemented opcode crash (op 12 with no sky) --
+BEFORE "42 N>N  12 N>N  0 N>N  1 N>N  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK DROP"
+T "crash: unimplemented op12"    "000000000000002A" "42 ."
+
+# -- %tame crashes --
+BEFORE "0 N>N  1701667188 N>N  42 N>N  CONS  11 N>N  SWAP  CONS  1 N>N  99 N>N  CONS  CONS  NOCK DROP"
+T "crash: %tame atom clue"       "000000000000002A" "42 ."
+
+# ── Forth Primitives Smoke Tests ──────────────────────────────────────────
+# Basic sanity checks for core Forth words.
+
+T "forth: DUP"          "0000000000000002" "1 DUP + ."
+T "forth: DROP"         "0000000000000001" "1 2 DROP ."
+T "forth: SWAP"         "0000000000000002" "1 2 SWAP DROP ."
+T "forth: OVER"         "0000000000000001" "1 2 OVER DROP DROP ."
+T "forth: ROT"          "0000000000000002" "1 2 3 ROT DROP DROP ."
+T "forth: +"            "0000000000000003" "1 2 + ."
+T "forth: -"            "0000000000000001" "3 2 - ."
+T "forth: *"            "0000000000000006" "2 3 * ."
+T "forth: / (integer)"  "0000000000000003" "7 2 / ."
+T "forth: < true"       "FFFFFFFFFFFFFFFF" "1 2 < ."
+T "forth: < false"      "0000000000000000" "2 1 < ."
+T "forth: > true"       "FFFFFFFFFFFFFFFF" "2 1 > ."
+T "forth: > false"      "0000000000000000" "1 2 > ."
+T "forth: = true"       "FFFFFFFFFFFFFFFF" "42 42 = ."
+T "forth: = false"      "0000000000000000" "42 43 = ."
+T "forth: AND"          "0000000000000003" "7 3 AND ."
+T "forth: OR"           "000000000000000F" "5 10 OR ."
+T "forth: XOR"          "0000000000000006" "5 3 XOR ."
+T "forth: INV"          "FFFFFFFFFFFFFFFF" "0 INV ."
+T "forth: NEG"          "FFFFFFFFFFFFFFFE" "2 NEG ."
+
+# ── Additional Indirect Atom Hardening ────────────────────────────────────
+# Test indirect atoms through Nock ops, not just Forth bignum words.
+
+# Nock 5 (equality) on two independently created indirect atoms
+T "indirect: nock5 equal"     "0000000000000000" \
+    "0 N>N  5 N>N  4 N>N 1 N>N 9223372036854775807 N>N CONS CONS  4 N>N 1 N>N 9223372036854775807 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# Nock 5 (equality) on different indirect atoms → 1 (not equal)
+T "indirect: nock5 unequal"   "0000000000000001" \
+    "0 N>N  5 N>N  4 N>N 1 N>N 9223372036854775807 N>N CONS CONS  4 N>N 1 N>N 9223372036854775806 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# Nock 3 (wut) on indirect atom → 1 (atom, not cell)
+T "indirect: nock3 atom"      "0000000000000001" \
+    "0 N>N  3 N>N  4 N>N 1 N>N 9223372036854775807 N>N CONS CONS  CONS  NOCK NOUN> ."
+# Nock 4 on indirect → next indirect (2^63+1)
+TD "indirect: nock4 inc"      "9223372036854775809" \
+    "I63  DUP  0 N>N SWAP  4 N>N 0 N>N 1 N>N CONS CONS  NOCK  N."
+# CONS with indirect head, direct tail
+T "indirect: cons hd-indirect" "FFFFFFFFFFFFFFFF" \
+    "I63  42 N>N  CONS  DUP CAR  I63 =NOUN  SWAP CDR 42 N>N =NOUN  AND ."
+# CONS with direct head, indirect tail
+T "indirect: cons tl-indirect" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  I63  CONS  DUP CAR  42 N>N =NOUN  SWAP CDR I63 =NOUN  AND ."
+# JAM/CUE roundtrip preserves indirect atom
+T "indirect: jam/cue roundtrip" "FFFFFFFFFFFFFFFF" \
+    "I63  DUP JAM CUE =NOUN ."
+# JAM/CUE roundtrip on cell with indirect atoms
+T "indirect: jam/cue cell"    "FFFFFFFFFFFFFFFF" \
+    "I63  I63  1 N>N BN+  CONS  DUP JAM CUE =NOUN ."
+# BNSUB producing exact boundary: 2^63 - 1 → max direct atom
+T "indirect: bnsub to direct"  "FFFFFFFFFFFFFFFF" \
+    "I63  1 N>N  BNSUB  9223372036854775807 N>N  =NOUN ."
+# BN+ near boundary: max_direct + max_direct
+TD "indirect: bn+ double max"  "18446744073709551614" \
+    "9223372036854775807 N>N  9223372036854775807 N>N  BN+ N."
+
+# ── Nock Reference Tests (generated from norm/tests.json) ────────────────
+# Each test builds subject+formula, runs NOCK, compares result with =NOUN.
+
+T "norm: Auto-cons: distribution over a cell of formulas" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  0 N>N  1 N>N  CONS  CONS  NOCK  43 N>N  42 N>N  CONS  =NOUN ."
+T "norm: Auto-cons: nested distribution" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  0 N>N  2 N>N  CONS  0 N>N  3 N>N  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  1 N>N  2 N>N  1 N>N  2 N>N  CONS  CONS  CONS  =NOUN ."
+T "norm: Nock 0: axis 1 returns the whole subject" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  0 N>N  1 N>N  CONS  NOCK  42 N>N  =NOUN ."
+T "norm: Nock 0: axis 2 returns the head" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  0 N>N  2 N>N  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 0: axis 3 returns the tail" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  0 N>N  3 N>N  CONS  NOCK  2 N>N  =NOUN ."
+T "norm: Nock 0: axis 4 returns the head of the head" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  0 N>N  4 N>N  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 0: axis 5 returns the tail of the head" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  0 N>N  5 N>N  CONS  NOCK  2 N>N  =NOUN ."
+T "norm: Nock 0: axis 6 returns the head of the tail" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  0 N>N  6 N>N  CONS  NOCK  3 N>N  =NOUN ."
+T "norm: Nock 0: axis 7 returns the tail of the tail" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  0 N>N  7 N>N  CONS  NOCK  4 N>N  =NOUN ."
+T "norm: Nock 0: deep addressing (axis 12)" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  5 N>N  6 N>N  CONS  7 N>N  8 N>N  CONS  CONS  CONS  0 N>N  12 N>N  CONS  NOCK  5 N>N  =NOUN ."
+T "norm: Nock 0: deep addressing (axis 15)" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  5 N>N  6 N>N  CONS  7 N>N  8 N>N  CONS  CONS  CONS  0 N>N  15 N>N  CONS  NOCK  8 N>N  =NOUN ."
+BEFORE "42 N>N  0 N>N  0 N>N  CONS  NOCK DROP"
+T "norm: Nock 0: axis 0 crashes (undefined) (crash recovers)" "000000000000002A" "42 ."
+BEFORE "1 N>N  2 N>N  CONS  0 N>N  6 N>N  CONS  NOCK DROP"
+T "norm: Nock 0: addressing into atom crashes (crash recovers)" "000000000000002A" "42 ."
+T "norm: Nock 1: constant atom" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  1 N>N  0 N>N  CONS  NOCK  0 N>N  =NOUN ."
+T "norm: Nock 1: constant atom, subject ignored" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  1 N>N  57 N>N  CONS  NOCK  57 N>N  =NOUN ."
+T "norm: Nock 1: constant cell" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  1 N>N  1 N>N  2 N>N  CONS  CONS  NOCK  1 N>N  2 N>N  CONS  =NOUN ."
+T "norm: Nock 1: constant deep cell" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  1 N>N  1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  CONS  NOCK  1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  =NOUN ."
+T "norm: Nock 1: subject has no effect on result" "FFFFFFFFFFFFFFFF" \
+    "99 N>N  100 N>N  CONS  101 N>N  102 N>N  CONS  CONS  1 N>N  0 N>N  CONS  NOCK  0 N>N  =NOUN ."
+T "norm: Nock 2: evaluate with computed subject and formula" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  2 N>N  0 N>N  1 N>N  CONS  1 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  CONS  CONS  NOCK  43 N>N  =NOUN ."
+T "norm: Nock 2: evaluate constant subject and formula" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  2 N>N  1 N>N  1 N>N  2 N>N  CONS  CONS  1 N>N  1 N>N  3 N>N  CONS  CONS  CONS  CONS  NOCK  3 N>N  =NOUN ."
+T "norm: Nock 2: evaluate with subject from slot" "FFFFFFFFFFFFFFFF" \
+    "4 N>N  0 N>N  1 N>N  CONS  CONS  99 N>N  CONS  2 N>N  0 N>N  3 N>N  CONS  0 N>N  2 N>N  CONS  CONS  CONS  NOCK  100 N>N  =NOUN ."
+T "norm: Nock 2: nested evaluate" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  2 N>N  1 N>N  0 N>N  CONS  1 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 3: cell test on cell yields 0 (yes)" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  0 N>N  1 N>N  CONS  CONS  NOCK  0 N>N  =NOUN ."
+T "norm: Nock 3: cell test on atom yields 1 (no)" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  3 N>N  0 N>N  1 N>N  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 3: cell test on computed cell" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  3 N>N  1 N>N  1 N>N  2 N>N  CONS  CONS  CONS  NOCK  0 N>N  =NOUN ."
+T "norm: Nock 3: cell test on computed atom" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  3 N>N  1 N>N  42 N>N  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 4: increment atom" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  NOCK  43 N>N  =NOUN ."
+T "norm: Nock 4: increment zero" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 4: increment computed value" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  4 N>N  0 N>N  3 N>N  CONS  CONS  NOCK  3 N>N  =NOUN ."
+T "norm: Nock 4: double increment via composition" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  4 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  2 N>N  =NOUN ."
+BEFORE "1 N>N  2 N>N  CONS  4 N>N  0 N>N  1 N>N  CONS  CONS  NOCK DROP"
+T "norm: Nock 4: increment cell crashes (crash recovers)" "000000000000002A" "42 ."
+T "norm: Nock 5: equal atoms yield 0 (yes)" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  5 N>N  0 N>N  1 N>N  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  0 N>N  =NOUN ."
+T "norm: Nock 5: unequal atoms yield 1 (no)" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  5 N>N  0 N>N  1 N>N  CONS  1 N>N  43 N>N  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 5: equal cells yield 0" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  1 N>N  2 N>N  CONS  CONS  5 N>N  0 N>N  2 N>N  CONS  0 N>N  3 N>N  CONS  CONS  CONS  NOCK  0 N>N  =NOUN ."
+T "norm: Nock 5: unequal cells yield 1" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  5 N>N  0 N>N  2 N>N  CONS  0 N>N  3 N>N  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 5: atom vs cell yields 1" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  1 N>N  2 N>N  CONS  CONS  5 N>N  0 N>N  2 N>N  CONS  0 N>N  3 N>N  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 6: branch on 0 takes the true arm" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  6 N>N  1 N>N  0 N>N  CONS  1 N>N  1 N>N  CONS  1 N>N  2 N>N  CONS  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 6: branch on 1 takes the false arm" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  6 N>N  1 N>N  1 N>N  CONS  1 N>N  1 N>N  CONS  1 N>N  2 N>N  CONS  CONS  CONS  CONS  NOCK  2 N>N  =NOUN ."
+T "norm: Nock 6: branch with computed test (cell test)" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  6 N>N  3 N>N  0 N>N  1 N>N  CONS  CONS  1 N>N  99 N>N  CONS  0 N>N  2 N>N  CONS  CONS  CONS  CONS  NOCK  99 N>N  =NOUN ."
+T "norm: Nock 6: branch with computed test (atom case)" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  6 N>N  3 N>N  0 N>N  1 N>N  CONS  CONS  1 N>N  99 N>N  CONS  0 N>N  1 N>N  CONS  CONS  CONS  CONS  NOCK  42 N>N  =NOUN ."
+BEFORE "42 N>N  6 N>N  1 N>N  2 N>N  CONS  1 N>N  1 N>N  CONS  1 N>N  2 N>N  CONS  CONS  CONS  CONS  NOCK DROP"
+T "norm: Nock 6: non-boolean test crashes (crash recovers)" "000000000000002A" "42 ."
+T "norm: Nock 7: compose two increments" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  7 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  CONS  NOCK  44 N>N  =NOUN ."
+T "norm: Nock 7: compose slot then increment" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  7 N>N  0 N>N  2 N>N  CONS  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  CONS  NOCK  2 N>N  =NOUN ."
+T "norm: Nock 7: compose constant then slot" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  7 N>N  1 N>N  1 N>N  2 N>N  CONS  CONS  0 N>N  2 N>N  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 7: triple composition" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  7 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  7 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  CONS  CONS  CONS  NOCK  3 N>N  =NOUN ."
+T "norm: Nock 8: push value, read it from head" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  8 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  0 N>N  2 N>N  CONS  CONS  CONS  NOCK  43 N>N  =NOUN ."
+T "norm: Nock 8: push value, read original subject from tail" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  8 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  0 N>N  3 N>N  CONS  CONS  CONS  NOCK  42 N>N  =NOUN ."
+T "norm: Nock 8: push and compare with original" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  8 N>N  1 N>N  0 N>N  CONS  5 N>N  0 N>N  2 N>N  CONS  0 N>N  3 N>N  CONS  CONS  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 8: push constant, use in formula" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  8 N>N  1 N>N  99 N>N  CONS  0 N>N  2 N>N  CONS  CONS  CONS  NOCK  99 N>N  =NOUN ."
+T "norm: Nock 8: push and auto-cons from augmented subject" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  8 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  0 N>N  2 N>N  CONS  0 N>N  3 N>N  CONS  CONS  CONS  CONS  NOCK  43 N>N  42 N>N  CONS  =NOUN ."
+T "norm: Nock 9: invoke arm in a simple core" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  9 N>N  2 N>N  1 N>N  4 N>N  0 N>N  3 N>N  CONS  CONS  42 N>N  CONS  CONS  CONS  CONS  NOCK  43 N>N  =NOUN ."
+T "norm: Nock 9: invoke identity arm" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  9 N>N  2 N>N  1 N>N  0 N>N  3 N>N  CONS  99 N>N  CONS  CONS  CONS  CONS  NOCK  99 N>N  =NOUN ."
+T "norm: Nock 9: invoke with modified payload via Nock 10" "FFFFFFFFFFFFFFFF" \
+    "0 N>N  9 N>N  2 N>N  10 N>N  3 N>N  1 N>N  7 N>N  CONS  CONS  1 N>N  4 N>N  0 N>N  3 N>N  CONS  CONS  42 N>N  CONS  CONS  CONS  CONS  CONS  CONS  NOCK  8 N>N  =NOUN ."
+T "norm: Nock 9: invoke on pre-built core from subject" "FFFFFFFFFFFFFFFF" \
+    "4 N>N  0 N>N  3 N>N  CONS  CONS  0 N>N  CONS  9 N>N  2 N>N  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 10: edit head of a cell" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  10 N>N  2 N>N  1 N>N  3 N>N  CONS  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  3 N>N  2 N>N  CONS  =NOUN ."
+T "norm: Nock 10: edit tail of a cell" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  10 N>N  3 N>N  1 N>N  3 N>N  CONS  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  1 N>N  3 N>N  CONS  =NOUN ."
+T "norm: Nock 10: edit axis 1 replaces entire noun" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  10 N>N  1 N>N  1 N>N  99 N>N  CONS  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  99 N>N  =NOUN ."
+T "norm: Nock 10: deep edit at axis 4" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  10 N>N  4 N>N  1 N>N  99 N>N  CONS  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  99 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  =NOUN ."
+T "norm: Nock 10: deep edit at axis 7" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  3 N>N  4 N>N  CONS  CONS  10 N>N  7 N>N  1 N>N  99 N>N  CONS  CONS  0 N>N  1 N>N  CONS  CONS  CONS  NOCK  1 N>N  2 N>N  CONS  3 N>N  99 N>N  CONS  CONS  =NOUN ."
+T "norm: Nock 11: static hint is transparent" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  11 N>N  1 N>N  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  CONS  NOCK  43 N>N  =NOUN ."
+T "norm: Nock 11: static hint with different tag" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  11 N>N  37 N>N  0 N>N  2 N>N  CONS  CONS  CONS  NOCK  1 N>N  =NOUN ."
+T "norm: Nock 11: dynamic hint evaluates and discards clue" "FFFFFFFFFFFFFFFF" \
+    "42 N>N  11 N>N  1 N>N  1 N>N  0 N>N  CONS  CONS  4 N>N  0 N>N  1 N>N  CONS  CONS  CONS  CONS  NOCK  43 N>N  =NOUN ."
+T "norm: Nock 11: dynamic hint clue does not affect result" "FFFFFFFFFFFFFFFF" \
+    "1 N>N  2 N>N  CONS  11 N>N  1 N>N  4 N>N  0 N>N  2 N>N  CONS  CONS  CONS  0 N>N  3 N>N  CONS  CONS  CONS  NOCK  2 N>N  =NOUN ."
+
+# 63 norm tests generated
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
 bi=0
@@ -849,8 +1103,8 @@ while [[ $bi -lt ${#BEFORE_LINES[@]} ]]; do
     (( ++bi ))
 done
 
-RAW=$({ printf '%s\n' "$INPUT"; sleep 4; printf '\001x'; } | \
-    timeout 45 qemu-system-aarch64 -machine raspi4b -kernel kernel8.img \
+RAW=$({ printf '%s\n' "$INPUT"; sleep 5; printf '\001x'; } | \
+    timeout 60 qemu-system-aarch64 -machine raspi4b -kernel kernel8.img \
         -display none -nographic || true)
 
 # Extract results from output lines.
