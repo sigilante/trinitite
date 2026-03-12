@@ -37,6 +37,16 @@ TD() {  # TD "description"  "expected-decimal-string"  "forth expression"
     TLINES+=("$3")
 }
 
+# BEFORE "line" — inject a Forth line before the *next* T/TD (produces no output).
+# Used for crash-recovery tests: the crash line longjmps to QUIT, the following
+# T() test then verifies the VM recovered cleanly.
+BEFORE_IDX=()
+BEFORE_LINES=()
+BEFORE() {
+    BEFORE_IDX+=("${#TNAMES[@]}")
+    BEFORE_LINES+=("$1")
+}
+
 # ── Preamble (defines helpers, produces no numeric output) ─────────────────
 # Also pre-builds the sub source cord in SCORD using 8-byte aligned stores
 # (bypasses TIB 255-char limit by splitting across multiple lines).
@@ -247,12 +257,48 @@ T "op11: %slog returns d"       "0000000000000008" \
 # *[9 [11 [%xray [0 1]] [4 [0 1]]]] = 10  (%xray cord = 2036429432)
 T "op11: %xray returns d"       "000000000000000A" \
     "9 N>N  11 N>N  2036429432 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# %mean stub: clue evaluated (discarded), d returned — cord 1851876717
+T "op11: %mean returns d"       "000000000000002B" \
+    "42 N>N  11 N>N  1851876717 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# %memo stub: clue evaluated (discarded), d returned — cord 1869440365
+T "op11: %memo returns d"       "000000000000002B" \
+    "42 N>N  11 N>N  1869440365 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# %bout stub: clue evaluated (discarded), d returned — cord 1953853282
+T "op11: %bout returns d"       "000000000000002B" \
+    "42 N>N  11 N>N  1953853282 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# %tame with atom clue (not a cell) → nock_crash → longjmp to QUIT → recovery
+# Formula: *[0 [11 [%tame [1 99]] [1 42]]] — clue=[1 99]=99 (atom), not a cell → crash
+# The BEFORE line triggers the crash; the T() verifies recovery.
+BEFORE "0 N>N  1701667188 N>N 1 N>N 99 N>N CONS CONS  1 N>N 42 N>N CONS  CONS  11 N>N SWAP CONS  NOCK DROP"
+T "op11: %tame crash recovers"  "000000000000002A" "42 ."
 
-# ── Phase 4a: bignum increment and equality ───────────────────────────────
-# 2^62-1 = 4611686018427387903 = max direct atom value
+# ── Op11 / indirect atom: ATOM?, CELL?, =NOUN on actual indirect atoms ─────
+# Direct atom boundary: bit 63 = 0 → max direct = 2^63-1 = 9223372036854775807
+# First indirect atom: INC(2^63-1) = 2^63 (bits63:62 = 10 → TAG_INDIRECT)
+# Use Nock op4 (INC) to produce the indirect atom:
+#   *[9223372036854775807  [4 [0 1]]]  = 2^63
+
+# ATOM? on indirect atom → -1 (true: indirect atoms ARE atoms)
+T "indirect: ATOM? true"        "FFFFFFFFFFFFFFFF" \
+    "9223372036854775807 N>N  4 N>N 0 N>N 1 N>N CONS CONS  NOCK  ATOM? ."
+# CELL? on indirect atom → 0 (false: indirect atoms are NOT cells)
+T "indirect: CELL? false"       "0000000000000000" \
+    "9223372036854775807 N>N  4 N>N 0 N>N 1 N>N CONS CONS  NOCK  CELL? ."
+# Two independent INC(2^63-1) produce noun-equal results (content addressing)
+# *[0  [5 [4 [1 2^63-1]] [4 [1 2^63-1]]]]  = NOUN_YES = 0
+T "indirect: =NOUN equal"       "0000000000000000" \
+    "0 N>N  5 N>N  4 N>N 1 N>N 9223372036854775807 N>N CONS CONS  4 N>N 1 N>N 9223372036854775807 N>N CONS CONS  CONS CONS  NOCK NOUN> ."
+# ATOM? on a cell → 0 (false: cells are NOT atoms)
+T "cell: ATOM? false"           "0000000000000000" \
+    "1 2 C>N  ATOM? ."
+# CELL? on a direct atom → 0 (false: atoms are NOT cells)
+T "direct: CELL? false"         "0000000000000000" \
+    "42 N>N  CELL? ."
+# Large direct atom tests (values around 2^62; all still direct since bit63=0)
+# 2^62-1 = 4611686018427387903  (large direct atom, NOT the indirect boundary)
 # 2^62-2 = 4611686018427387902
 #
-# inc at direct→indirect boundary: result must be an atom (ATOM? → Forth -1)
+# inc at 2^62-1: result = 2^62, still a direct atom (bit63=0); ATOM? → true
 T "bn_inc: boundary → atom"     "FFFFFFFFFFFFFFFF" \
     "0 N>N  4 N>N 1 N>N 4611686018427387903 N>N CONS CONS  NOCK ATOM? ."
 # two independent increments of same maxval are noun-equal
@@ -679,8 +725,19 @@ T "9g: SKNOCK cached formula" "000000000000002A" \
     "0 N>N  1 N>N 42 N>N CONS  SKNOCK  NOUN> ."
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
-for line in "${TLINES[@]}"; do
-    INPUT+=$'\n'"$line"
+bi=0
+for (( i=0; i<${#TLINES[@]}; i++ )); do
+    # Inject any BEFORE lines registered for this index
+    while [[ $bi -lt ${#BEFORE_IDX[@]} && "${BEFORE_IDX[$bi]}" -eq "$i" ]]; do
+        INPUT+=$'\n'"${BEFORE_LINES[$bi]}"
+        (( ++bi ))
+    done
+    INPUT+=$'\n'"${TLINES[$i]}"
+done
+# Flush BEFORE lines registered after the last T (tail crash tests)
+while [[ $bi -lt ${#BEFORE_LINES[@]} ]]; do
+    INPUT+=$'\n'"${BEFORE_LINES[$bi]}"
+    (( ++bi ))
 done
 
 RAW=$({ printf '%s\n' "$INPUT"; sleep 2; printf '\001x'; } | \

@@ -74,12 +74,14 @@ static void parse_wilt(noun wilt_noun, wilt_t *out) {
         noun    elem  = cons->head;
         wilt_noun     = cons->tail;
 
-        if (!noun_is_cell(elem)) continue;          /* malformed — skip */
+        if (!noun_is_cell(elem))
+            nock_crash("%wild: malformed wilt entry: expected [label sock] cell");
         cell_t *ep    = (cell_t *)(uintptr_t)cell_ptr(elem);
         noun    label = ep->head;
         noun    sock  = ep->tail;                   /* [cape data] */
 
-        if (!noun_is_cell(sock)) continue;          /* malformed — skip */
+        if (!noun_is_cell(sock))
+            nock_crash("%wild: malformed wilt entry: sock must be [cape data] cell");
         cell_t *sp    = (cell_t *)(uintptr_t)cell_ptr(sock);
 
         out->e[out->len].label     = label;
@@ -546,8 +548,11 @@ loop:
 
         case HINT_TAME:
             /* clue = [label source-cord]: compile Forth source into dictionary.
-             * Idempotent: redefining an existing word in Forth is harmless. */
-            if (noun_is_cell(clue)) {
+             * Idempotent: redefining an existing word in Forth is harmless.
+             * A non-cell clue is a malformed %tame hint → crash. */
+            if (!noun_is_cell(clue))
+                nock_crash("%tame: clue must be [label source-cord] cell");
+            {
                 cell_t *tc = (cell_t *)(uintptr_t)cell_ptr(clue);
                 noun src   = tc->tail;
                 char buf[512];

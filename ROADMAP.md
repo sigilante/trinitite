@@ -90,7 +90,7 @@ Not implemented (not needed for Nock): `."`, `S"`, `DOES>`, `DO`/`LOOP`.
 ### Phase 2 — Noun Primitives
 `noun.h`/`noun.c`/`nock.c`; Forth words: `>NOUN` `NOUN>` `CONS` `CAR` `CDR` `ATOM?` `CELL?`
 `=NOUN` `SLOT` `NOCK`.
-Noun representation: direct atoms (< 2^62, tag=01), indirect atoms (heap ptr + BLAKE3 prefix,
+Noun representation: direct atoms (< 2^63, bit 63 = 0), indirect atoms (62-bit BLAKE3 hash,
 tag=10), cells (heap ptr, tag=00).
 
 ### Phase 3 — Nock Evaluator

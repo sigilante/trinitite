@@ -353,9 +353,8 @@ Every noun is a 64-bit word. The top two bits are the tag:
 Bits 63:62  tag
   00  cell            bits 61:0 = 32-bit heap pointer to [head, tail] pair
                       bits 61:32 = 30 bits reserved (GC metadata, TBD)
-  01  direct atom     bits 61:0 = value  (0 .. 2^62-1)
-  10  indirect atom   bits 61:32 = low 30 bits of BLAKE3 hash (fast equality pre-check)
-                      bits 31:0  = 32-bit pointer to atom struct in RAM
+  01  direct atom     bit 63 = 0; bits 62:0 = value  (0 .. 2^63-1)
+  10  indirect atom   bits 61:0 = 62-bit BLAKE3 hash of limb data (identity IS the hash)
   11  content atom    bits 61:0  = 62-bit BLAKE3 prefix (identity IS the hash)
                       actual limb data lives in the atom store (RAM cache / SD card)
 ```
@@ -379,7 +378,7 @@ Tag constants (defined in `src/noun.h`):
 ```
 
 Notes:
-- Direct atoms cover all values up to ~4.6×10^18 — sufficient for most Nock programs.
+Direct atom boundary: direct atoms cover all values up to ~9.2×10^18 (2^63-1).
 - Type-11 (content atom) is reserved for Phase 4b; stubs only in Phase 2.
 - The 30-bit hash prefix in type-10 words is the low 30 bits of the full BLAKE3 hash,
   written once when `hash_atom()` is first called on that atom.
