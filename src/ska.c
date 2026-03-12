@@ -1,5 +1,5 @@
 /*
- * ska.c — Subject Knowledge Analysis implementation (Phase 7)
+ * ska.c — Subject Knowledge Analysis implementation (Phase 8)
  *
  * Stages:
  *   7b (this file, initial): cape/sock operations
@@ -18,6 +18,7 @@
 #include "bignum.h"
 #include "uart.h"
 #include "noun.h"
+#include "forth.h"
 #include "uart.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -52,7 +53,7 @@ void ska_arena_reset(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7e — Loop detection state
+ * Stage 8e — Loop detection state
  *
  * Global mutable state for the current scan pass.  Reset at the start of
  * each ska_nock() call (and on each redo-loop iteration).
@@ -95,7 +96,7 @@ static int g_block_len;
 static ska_frond_t g_fronds[SKA_MAX_FRONDS];
 static int         g_frond_len;
 
-/* ── Stage 7d: memo cache ────────────────────────────────────────────────────
+/* ── Stage 8d: memo cache ────────────────────────────────────────────────────
  * Maps (formula, subject-sock) → pre-scanned nomm body + product sock.
  * Prevents re-scanning the same arm when called from multiple sites.
  * Keyed by exact formula noun and `sock_huge(entry.sub, caller_sub)`.
@@ -154,7 +155,7 @@ static nomm_t  *scan(sock_t sub, noun fol);
 static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets);
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7b — Cape operations  (mirrors Hoon ++ca in skan.hoon)
+ * Stage 8b — Cape operations  (mirrors Hoon ++ca in skan.hoon)
  *
  *   cape_known()          → & (CAPE_KNOWN, atom 0)
  *   cape_wild()           → | (CAPE_WILD,  atom 1)
@@ -271,7 +272,7 @@ cape_t cape_pull(cape_t c, noun ax)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7b — Sock operations  (mirrors Hoon ++so in skan.hoon)
+ * Stage 8b — Sock operations  (mirrors Hoon ++so in skan.hoon)
  *
  *   sock_dunno(sub)        → [| 0] — completely unknown result
  *   sock_known(val)        → [& val] — exactly known
@@ -415,7 +416,7 @@ sock_t sock_darn(sock_t s, noun ax, sock_t edit)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7c/7e — Scan pass
+ * Stage 8c/7e — Scan pass
  *
  * scan(sub, fol) → nomm_t*
  *   sub : current subject sock (what we know about the subject at this point)
@@ -423,7 +424,7 @@ sock_t sock_darn(sock_t s, noun ax, sock_t edit)
  *   Returns annotated nomm_t*.  Each node carries a `prod` sock recording
  *   what the evaluator knows about the result of this sub-formula.
  *
- * Stage 7e adds loop detection via the fols_stack: when analysing a Nock-9
+ * Stage 8e adds loop detection via the fols_stack: when analysing a Nock-9
  * arm invocation whose formula is statically known, we search ancestor frames
  * for the same formula.  If found and the parent subject subsumes the child,
  * we emit a NOMM_DS2 backedge (body=NULL) instead of recursing.
@@ -484,7 +485,7 @@ static nomm_t *scan_cell(sock_t sub, noun head, noun tail)
         n->prod    = sock_known(tail);
         return n;
 
-    /* ── 2: eval *[*[a b] *[a c]] — conservative NOMM_I2 at Stage 7c ── */
+    /* ── 2: eval *[*[a b] *[a c]] — conservative NOMM_I2 at Stage 8c ── */
     case 2: {
         if (!noun_is_cell(tail)) {
             uart_puts("ska: op2 tail not cell\n");
@@ -622,7 +623,7 @@ static nomm_t *scan_cell(sock_t sub, noun head, noun tail)
     /* ── 9: invoke *[*[a c] 2 [0 1] 0 b]
      * Core = eval c; arm = slot(b, core); eval core as its own subject.
      *
-     * Stage 7e: if the arm formula is statically known (core_sock has KNOWN
+     * Stage 8e: if the arm formula is statically known (core_sock has KNOWN
      * cape at axis b), run the ++close loop heuristic:
      *  - Search g_fols_stack for the same formula.
      *  - If found and par_sub ⊇ kid_sub: emit NOMM_DS2 backedge.
@@ -854,7 +855,7 @@ static nomm_t *scan(sock_t sub, noun fol)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7c — eval_nomm: interpret a nomm_t AST
+ * Stage 8c — eval_nomm: interpret a nomm_t AST
  *
  * Mirrors nock_eval() but dispatches on the nomm_t structure.
  * Linear opcodes are handled natively; NOMM_I2 / NOMM_9 fall back to
@@ -1037,7 +1038,7 @@ static noun eval_nomm(const nomm_t *n, noun sub,
     }
 
     case NOMM_DUS2:
-        /* DS2/DUS2 only appear after the cook pass (Stage 7f). */
+        /* DS2/DUS2 only appear after the cook pass (Stage 8f). */
         nock_crash("ska: ds2/dus2 in uncocked nomm");
         return NOUN_ZERO;
 
@@ -1053,13 +1054,13 @@ static noun eval_nomm(const nomm_t *n, noun sub,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7c — Public entry points
+ * Stage 8c — Public entry points
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /*
  * ska_nock: analyze formula, then evaluate the resulting nomm_t AST.
  *
- * Stage 7e: wraps the scan in a redo-loop.  After scan, all fronds
+ * Stage 8e: wraps the scan in a redo-loop.  After scan, all fronds
  * (loop assumptions) are validated.  If any fail, the (par,kid) pair is
  * added to g_block and the scan is retried with the updated blocklist,
  * up to SKA_MAX_RETRIES times.
@@ -1106,7 +1107,7 @@ noun ska_nock(noun subject, noun formula,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7f — Cook pass: nomm_t → nomm1_t
+ * Stage 8f — Cook pass: nomm_t → nomm1_t
  *
  * Converts the scan-pass AST into the final annotated form used by
  * run_nomm1().  All Nock-2 variants (I2, DS2, DUS2, NOMM_9) are collapsed
@@ -1130,25 +1131,33 @@ static nomm1_t *nomm1_alloc(void)
 }
 
 /*
+/*
  * cook_find_jet: try to pre-wire a jet at a DS2 call site.
  *
  * At cook time we have the static sock for the expected core (bus).  If the
  * cape is fully known (&), bus.data is the exact core value and we can do
- * a static sock_match against each %wild registration.  On a hit, install
- * the jet function pointer directly in the nomm1 node.
+ * a static sock_match against each %wild registration.  On a hit, first check
+ * the live Forth dictionary (so REPL-defined words shadow hot_state[]),
+ * then fall back to the static C table.
  */
-static jet_fn_t cook_find_jet(sock_t bus, const wilt_t *jets)
+typedef struct { jet_fn_t jet; dict_entry_t *forth_jet; } jet_result_t;
+
+static jet_result_t cook_find_jet(sock_t bus, const wilt_t *jets)
 {
-    if (!jets) return NULL;
-    /* Only static jet lookup when we have full knowledge of the core. */
-    if (!cape_is_known(bus.cape)) return NULL;
+    jet_result_t r = { NULL, NULL };
+    if (!jets) return r;
+    if (!cape_is_known(bus.cape)) return r;
     for (int i = 0; i < jets->len; i++) {
         if (sock_match(jets->e[i].sock.cape, jets->e[i].sock.data, bus.data)) {
-            jet_fn_t fn = hot_lookup(jets->e[i].label);
-            if (fn) return fn;
+            noun label = jets->e[i].label;
+            /* Forth dict first: label noun == cord value for direct atoms */
+            dict_entry_t *fe = find_by_cord(label);
+            if (fe) { r.forth_jet = fe; return r; }
+            jet_fn_t fn = hot_lookup(label);
+            if (fn) { r.jet = fn; return r; }
         }
     }
-    return NULL;
+    return r;
 }
 
 static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets)
@@ -1214,10 +1223,10 @@ static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets)
         r->n2.ax       = direct_val(n->n9.ax);
         r->n2.has_bell = false;
         r->n2.jet      = NULL;
+        r->n2.forth_jet = NULL;
         return r;
 
     case NOMM_10:
-        r->tag           = NOMM_10;
         r->n10.ax        = n->n10.ax;
         r->n10.val_fol   = cook_nomm(n->n10.val_fol, jets);
         r->n10.tgt_fol   = cook_nomm(n->n10.tgt_fol, jets);
@@ -1251,6 +1260,7 @@ static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets)
         r->n2.ax       = 0;
         r->n2.has_bell = false;
         r->n2.jet      = NULL;
+        r->n2.forth_jet = NULL;
         return r;
 
     case NOMM_DS2: {
@@ -1264,7 +1274,8 @@ static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets)
         r->n2.has_bell = true;
         r->n2.bell.bus = bus;
         r->n2.bell.fol = n->ds2.fol;
-        r->n2.jet      = cook_find_jet(bus, jets);
+        { jet_result_t jr = cook_find_jet(bus, jets);
+          r->n2.jet = jr.jet; r->n2.forth_jet = jr.forth_jet; }
         return r;
     }
 
@@ -1279,7 +1290,8 @@ static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets)
         r->n2.has_bell = true;
         r->n2.bell.bus = bus;
         r->n2.bell.fol = NOUN_ZERO;   /* computed at runtime via q */
-        r->n2.jet      = cook_find_jet(bus, jets);
+        { jet_result_t jr = cook_find_jet(bus, jets);
+          r->n2.jet = jr.jet; r->n2.forth_jet = jr.forth_jet; }
         return r;
     }
 
@@ -1294,7 +1306,7 @@ static nomm1_t *cook_nomm(const nomm_t *n, const wilt_t *jets)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7f — run_nomm1: interpret a cooked nomm1_t AST
+ * Stage 8f — run_nomm1: interpret a cooked nomm1_t AST
  *
  * Mirrors eval_nomm() but operates on the NOMM_2-unified representation.
  * NOMM_2 dispatch priority:
@@ -1360,7 +1372,13 @@ noun run_nomm1(const nomm1_t *n, noun sub,
     case NOMM_2: {
         noun core = run_nomm1(n->n2.p, sub, jets, sky);
 
-        /* 1. Static jet: pre-wired at cook time, O(1) dispatch. */
+        /* 1a. Forth dictionary jet: pre-wired at cook time, dispatches via ABI bridge. */
+        if (n->n2.forth_jet != NULL && n->n2.has_bell) {
+            if (sock_match(n->n2.bell.bus.cape, n->n2.bell.bus.data, core))
+                return forth_call_jet(n->n2.forth_jet, core);
+        }
+
+        /* 1b. C hot_state jet: pre-wired at cook time, O(1) dispatch. */
         if (n->n2.jet != NULL && n->n2.has_bell) {
             if (sock_match(n->n2.bell.bus.cape, n->n2.bell.bus.data, core))
                 return n->n2.jet(core, jets, sky);
@@ -1430,13 +1448,13 @@ noun run_nomm1(const nomm1_t *n, noun sub,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7f — ska_analyze: full scan + cook pipeline
+ * Stage 8f — ska_analyze: full scan + cook pipeline
  *
  * Returns a boil_t* containing the cooked nomm1_t entry point, allocated
  * from the per-call SKA arena.  Returns NULL on hard failure.
  *
  * The returned boil_t is valid until the next ska_arena_reset() call.
- * Stage 7g will copy it to a persistent arena for caching.
+ * Stage 8g will copy it to a persistent arena for caching.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 boil_t *ska_analyze(noun subject, noun formula,
@@ -1474,7 +1492,7 @@ boil_t *ska_analyze(noun subject, noun formula,
         boil_t *boil = (boil_t *)ska_alloc(sizeof(boil_t));
         if (!boil) return NULL;
         boil->entry  = cooked;
-        boil->lon    = NULL;   /* long_t integration deferred to Stage 7g */
+        boil->lon    = NULL;   /* long_t integration deferred to Stage 8g */
         boil->nsites = 0;
         return boil;
     }
@@ -1483,7 +1501,7 @@ boil_t *ska_analyze(noun subject, noun formula,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 7g — ska_print_stats: analysis dashboard (.SKA Forth word)
+ * Stage 8g — ska_print_stats: analysis dashboard (.SKA Forth word)
  *
  * Walks the cooked nomm1_t tree and counts:
  *   total   — NOMM_2 nodes (all call sites)

@@ -485,7 +485,7 @@ T "jet mod: mod(10,3)=1"       "0000000000000001" \
 T "jet mod: mod(12,4)=0"       "0000000000000000" \
     "0 N>N  6582125 N>N  12 N>N  4 N>N  JCORE2 JD JWRAP  NOCK  NOUN> ."
 
-# ── Phase 6 — Kernel Loop ─────────────────────────────────────────────────
+# ── Phase 7 — Kernel Loop ─────────────────────────────────────────────────
 T "KSHAPE default zero"        "0000000000000000" \
     "KSHAPE @  ."
 T "DO-FX empty list"           "0000000000000001" \
@@ -493,7 +493,7 @@ T "DO-FX empty list"           "0000000000000001" \
 T "DO-FX %out effect"          "0000000000000001" \
     "7632239 >NOUN  0 >NOUN CONS  0 >NOUN CONS  DO-FX  1 ."
 
-# ── Phase 7 — SKA: SKNOCK gives same answers as NOCK ─────────────────────
+# ── Phase 8 — SKA: SKNOCK gives same answers as NOCK ─────────────────────
 # SKNOCK runs the scan pass and eval_nomm; ops 9/I2 fall back to nock_ex.
 # Linear ops are handled natively; jet dispatch fires via %wild scope.
 
@@ -551,19 +551,19 @@ T "ska jet div: div(10,3)=3"   "0000000000000003" \
 T "ska jet mod: mod(10,3)=1"   "0000000000000001" \
     "0 N>N  6582125 N>N  10 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
 
-# loop detection (Stage 7e): battery = [9 2 [0 1]] — self-referential formula
+# loop detection (Stage 8e): battery = [9 2 [0 1]] — self-referential formula
 # scan detects the backedge; eval falls back to nock_op9_continue → jet fires
 T "ska loop: recursive battery, dec jet"  "0000000000000004" \
     "0 N>N  6514020 N>N  5 N>N 0 N>N CONS  0 N>N 1 N>N CONS 2 N>N SWAP CONS 9 N>N SWAP CONS  SWAP CONS  JD JWRAP  SKNOCK  NOUN> ."
 
-# memo cache (Stage 7d): same arm called twice — second hit uses cached nomm
+# memo cache (Stage 8d): same arm called twice — second hit uses cached nomm
 # Two independent %wild-wrapped dec(5) calls; both should yield 4
 T "ska memo: double dec(5)=4,4"  "0000000000000004" \
     "0 N>N  6514020 N>N  5 N>N  JCORE1 JD JWRAP  SKNOCK  NOUN> ."
 T "ska memo: double dec(5)=4,4 again"  "0000000000000004" \
     "0 N>N  6514020 N>N  5 N>N  JCORE1 JD JWRAP  SKNOCK  NOUN> ."
 
-# ── Stage 7g: SKA-EN + .SKA ──────────────────────────────────────────────
+# ── Stage 8g: SKA-EN + .SKA ──────────────────────────────────────────────
 # SKA-EN routes NOCK through ska_nock; results must match plain NOCK.
 T "ska-enable: dec(5)=4 via NOCK"  "0000000000000004" \
     "1 SKA-EN !  0 N>N  6514020 N>N  5 N>N  JCORE1 JD JWRAP  NOCK  NOUN> .  0 SKA-EN !"

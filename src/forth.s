@@ -2120,12 +2120,115 @@ defcode "KERNEL", 6, kernel, 0
 trampoline_quit:
     .quad   word_quit_resume
 
+// Fake dictionary entry for the jet call return stub.
+// Layout matches the standard header: link(8)+flags|len(8)+name(8)+codeword(8).
+// Not in the dictionary chain (link=0); codeword points to jet_return_code.
+    .balign 8
+forth_jet_return:
+    .quad   0                          // link = NULL
+    .quad   0                          // flags|len = 0 (internal stub)
+    .quad   0                          // name = empty
+    .quad   jet_return_code            // codeword → jet_return_code in .text
+
+// One-cell trampoline for forth_call_jet.
+// NEXT loads forth_jet_return as W and dispatches to jet_return_code.
+trampoline_jet:
+    .quad   forth_jet_return
+
 // ═════════════════════════════════════════════════════════════════════════════
 // HELPER SUBROUTINES (called via BL, not NEXT — these are C-ABI helpers)
 // ═════════════════════════════════════════════════════════════════════════════
 
+// ─── BSS: mutable globals for forth_call_jet ─────────────────────────────────
+    .bss
+    .balign 8
+jet_ctx_sp:     .skip 8                 // saved C stack pointer during forth_call_jet
+
     .text
     .balign 4
+
+// ─────────────────────────────────────────────────────────────────────────────
+// find_by_cord: search Forth dictionary by label cord.
+// extern dict_entry_t *find_by_cord(uint64_t cord);
+//
+// A cord is a LE-packed ASCII string. The dictionary name field (offset 16,
+// 8 bytes, zero-padded) stores the same encoding, so a direct 64-bit compare
+// matches both content and length in one instruction.
+// Returns entry pointer on match, NULL if not found. Skips F_HIDDEN words.
+// C ABI: arg in x0, return in x0. Clobbers x1-x3.
+// ─────────────────────────────────────────────────────────────────────────────
+    .global find_by_cord
+find_by_cord:
+    ldr     x1, =word_latest + 32
+    ldr     x1, [x1]                    // x1 = head of dictionary chain
+.Lfbc_loop:
+    cbz     x1, .Lfbc_not_found
+    ldr     x2, [x1, #8]               // flags|len
+    tst     x2, #(F_HIDDEN << 8)
+    b.ne    .Lfbc_next                  // skip hidden words
+    ldr     x2, [x1, #16]              // name field (8 bytes LE == cord value)
+    cmp     x2, x0
+    b.eq    .Lfbc_found
+.Lfbc_next:
+    ldr     x1, [x1]                   // follow link pointer
+    b       .Lfbc_loop
+.Lfbc_not_found:
+    mov     x0, #0
+    ret
+.Lfbc_found:
+    mov     x0, x1
+    ret
+
+// ─────────────────────────────────────────────────────────────────────────────
+// forth_call_jet: call a Forth dictionary word as a Nock jet.
+// extern noun forth_call_jet(dict_entry_t *entry, noun core);
+//
+// Saves all C callee-saved registers and Forth machine registers (x19-x30)
+// onto the C stack. Pushes core onto DSP. Sets W = entry, IP = trampoline_jet,
+// then dispatches to the word's codeword via br (no return here).
+//
+// When the Forth word finishes, NEXT fires through trampoline_jet and lands in
+// jet_return_code, which restores the C context from jet_ctx_sp and returns
+// the top-of-stack result in x0 to the original C caller.
+// ─────────────────────────────────────────────────────────────────────────────
+    .global forth_call_jet
+forth_call_jet:
+    sub     sp, sp, #96
+    stp     x19, x20, [sp, #0]
+    stp     x21, x22, [sp, #16]
+    stp     x23, x24, [sp, #32]        // x24 = W  (Forth)
+    stp     x25, x26, [sp, #48]        // x25 = RSP, x26 = DSP  (Forth)
+    stp     x27, x28, [sp, #64]        // x27 = IP  (Forth)
+    stp     x29, x30, [sp, #80]        // frame pointer + link register
+
+    ldr     x4, =jet_ctx_sp
+    mov     x5, sp
+    str     x5, [x4]                   // save C sp for jet_return_code
+
+    str     x1, [DSP, #-8]!            // push core onto Forth data stack
+
+    mov     W, x0                      // W = entry pointer
+    ldr     x0, =trampoline_jet
+    mov     IP, x0                     // IP points at trampoline_jet
+    ldr     x0, [W, #24]               // load codeword
+    br      x0                         // dispatch (does not return here)
+
+// Codeword for forth_jet_return (the fake return-stub entry).
+// Entered via NEXT when trampoline_jet dispatches forth_jet_return.
+// Restores the full C context saved by forth_call_jet and returns result in x0.
+jet_return_code:
+    ldr     x1, =jet_ctx_sp
+    ldr     x2, [x1]                   // restore saved C stack pointer
+    mov     sp, x2
+    ldr     x0, [DSP], #8             // pop result from Forth data stack
+    ldp     x19, x20, [sp, #0]
+    ldp     x21, x22, [sp, #16]
+    ldp     x23, x24, [sp, #32]
+    ldp     x25, x26, [sp, #48]
+    ldp     x27, x28, [sp, #64]
+    ldp     x29, x30, [sp, #80]
+    add     sp, sp, #96
+    ret
 
 // printhex64 ( x0 = value ) — print 16 hex digits to UART
 // Clobbers x0-x4. Uses standard C ABI (bl/ret).

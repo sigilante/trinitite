@@ -1,6 +1,6 @@
 #pragma once
 /*
- * ska.h — Subject Knowledge Analysis (Phase 7)
+ * ska.h — Subject Knowledge Analysis (Phase 8)
  *
  * Ports the core types of dozreg-toplud/ska (skan.hoon / noir.hoon / sock.hoon)
  * to C.  The scan pass produces a `nomm_t` annotated AST; the cook pass resolves
@@ -15,6 +15,12 @@
 #include "nock.h"
 #include <stdint.h>
 #include <stdbool.h>
+
+/* Forward declaration — full definition in forth.h */
+#ifndef DICT_ENTRY_DEFINED
+#define DICT_ENTRY_DEFINED
+typedef struct dict_entry dict_entry_t;
+#endif
 
 /* ── cape_t — boolean subject-knowledge tree ─────────────────────────────────
  *
@@ -185,7 +191,8 @@ struct nomm1_s {
             uint64_t  ax;           /* arm axis (for nock_op9_continue)        */
             bool      has_bell;     /* true if bell is valid                   */
             bell_t    bell;         /* subject template + formula for matching */
-            jet_fn_t  jet;          /* non-NULL if a hot jet matched           */
+            jet_fn_t  jet;          /* non-NULL if a C hot_state jet matched   */
+            dict_entry_t *forth_jet;/* non-NULL if a Forth dictionary jet found*/
         } n2;
     };
     sock_t prod;

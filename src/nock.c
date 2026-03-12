@@ -502,7 +502,7 @@ loop:
      *   %wild  — parse $wilt clue, scope jet registrations into *[a d]
      *   %slog  — print clue noun to UART (bare-metal printf)
      *   %xray  — print clue noun tree to UART (noun inspector)
-     *   %mean  — stub (stack trace, Phase 7)
+     *   %mean  — stub (stack trace, Phase 8)
      *   %memo  — stub (memoization, Phase 5)
      *   %bout  — stub (timing, future)
      *   other  — silent no-op

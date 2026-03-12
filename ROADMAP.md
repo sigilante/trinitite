@@ -202,7 +202,7 @@ NOCK               \ evaluate
 
 `PILL` returns atom `0` if no pill was loaded (QEMU zeroes RAM at startup).
 
-### Phase 6 — Kernel Loop
+### Phase 7 — Kernel Loop
 
 Replace the Forth REPL as the top-level driver with a Nock event loop.
 Two kernel shapes are supported, selected by a flag byte in the PILL header:
@@ -239,7 +239,7 @@ bytes  16+:   raw jam bytes (little-endian bignum, 16-byte aligned)
 
 Events in / effects out: `[8-byte LE length][raw jam bytes]`.
 
-#### Effect Dispatch (Phase 6)
+#### Effect Dispatch (Phase 7)
 
 Effects are a Nock list `[[tag data] rest]` terminated by `0`.
 
@@ -264,11 +264,11 @@ Effects are a Nock list `[[tag data] rest]` terminated by `0`.
 #### Design Decisions
 
 - **Forth REPL preserved**: no pill → `KERNEL` falls through to `QUIT`. The REPL
-  remains the debug escape hatch throughout Phase 6+.
+  remains the debug escape hatch throughout Phase 7+.
 - **No custom compiler**: kernel is a standard Hoon gate from the Dojo.
-  `%wild` hints can be hand-annotated in the jam or added later via Phase 7 SKA.
+  `%wild` hints can be hand-annotated in the jam or added later via Phase 8 SKA.
 - **UART receive buffer**: 28KB static window at `UART_RXBUF_BASE` (between TIB
-  and dictionary). Sufficient for Phase 6 test events; extend for Phase 7+.
+  and dictionary). Sufficient for Phase 7 test events; extend for Phase 8+.
 
 **Prerequisites**: all complete — bignum ✓, JAM/CUE ✓, PILL loader ✓, jets ✓.
 
@@ -279,7 +279,7 @@ Arvo and Shrine shapes. CI: 158 REPL tests + 5 kernel boot integration tests all
 
 ## Remaining Phases
 
-### Phase 7 — SKA (Subject Knowledge Analysis)
+### Phase 8 — SKA (Subject Knowledge Analysis)
 
 **STATUS: COMPLETE** — All stages 7a–7h done. 182 tests passing.
 
@@ -416,8 +416,8 @@ initial sock. After SKA, op-9 dispatch skips `sock_match` entirely at
 | **7g** Integration     | `src/forth.s` | ✅ `SKA-EN` variable, `NOCK` routes through SKA when set, `.SKA` stats word |
 | **7h** Tests           | `tests/run_tests.sh` | ✅ SKA-EN, .SKA no-crash, 182 tests total |
 
-Stage 7c alone gives partial benefit (non-looping direct calls annotated).
-Stage 7e is required for all tail-recursive Hoon gates (`dec`, `add`, etc.).
+Stage 8c alone gives partial benefit (non-looping direct calls annotated).
+Stage 8e is required for all tail-recursive Hoon gates (`dec`, `add`, etc.).
 
 **What we are NOT porting from `skan.hoon`**:
 - `%fast` hint processing — we use `%wild` only, `%fast` is intentionally ignored
@@ -426,7 +426,7 @@ Stage 7e is required for all tail-recursive Hoon gates (`dec`, `add`, etc.).
 - Tarjan SCC (`++find-sccs`) — only used by `find-args`, not the main scan/cook flow
 - `++ka.rout` queue management — driven by `%fast` cold state; not needed
 
-### Phase 8 — Forth as Jet Dashboard
+### Phase 9 — Forth as Jet Dashboard
 
 Move Nock evaluator dispatch into the Forth dictionary.
 
@@ -507,7 +507,7 @@ disrupting the Forth call frame.
 
 #### Interaction with SKA Cook Pass
 
-`cook_find_jet` currently searches only `hot_state[]`. In Phase 8 it gains a
+`cook_find_jet` currently searches only `hot_state[]`. In Phase 9 it gains a
 second lookup:
 
 ```c
@@ -538,7 +538,7 @@ the word will be present and cook pre-wires the jet at O(1).
 | **8f** `%tame` handler | `src/nock.c`                  | Parse `[label forth-source]` clue, idempotency guard, call `forth_eval_string` |
 | **8g** Cache + bench   | `src/ska.c` / `src/forth.s`   | `TIMER@` (`mrs CNTVCT_EL0`); SKA formula cache (boil_t* keyed by formula noun); benchmark word comparing plain `NOCK` vs `SKNOCK` |
 
-**Prerequisites**: Phase 7 COMPLETE ✅ — all 182 tests passing.
+**Prerequisites**: Phase 8 COMPLETE ✅ — all 182 tests passing.
 
 #### Key Design Decisions
 

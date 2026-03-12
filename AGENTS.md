@@ -210,16 +210,16 @@ direct atom = raw integer (bit 63 = 0).
 **Phase 5a/5b/5c/5d: COMPLETE** — Jam/cue (`src/jam.c`). PILL loader (0x10000000).
 Hot jets wired. All 158 REPL tests passing.
 
-**Phase 6: COMPLETE** — Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch.
+**Phase 7: COMPLETE** — Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch.
 PILL v2 format. Forth words: `KSHAPE`, `RECV-NOUN`, `SEND-NOUN`, `DISPATCH-FX`,
 `ARVO-LOOP`, `SHRINE-LOOP`, `KERNEL`.
 CI: QEMU 9.2.0 from source (raspi4b), 158 REPL tests + 5 kernel boot tests all passing.
 
 ## Immediate Tasks for This Agent
 
-**Phase 8: Forth as Jet Dashboard** — 7 stages, see ROADMAP.md for full detail.
+**Phase 9: Forth as Jet Dashboard** — 7 stages, see ROADMAP.md for full detail.
 
-Phase 7 is complete (all 182 tests passing). Phase 8 stages in order:
+Phase 8 is complete (all 182 tests passing). Phase 9 stages in order:
 
 1. **8a** `src/forth.s` — `find_by_cord(uint64_t cord) → entry*` C-callable dict search by label cord
 2. **8b** `src/forth.s` — ABI bridge: `forth_call_jet(entry*, noun core, jets, sky) → noun`; DSP push/pop convention
@@ -229,7 +229,7 @@ Phase 7 is complete (all 182 tests passing). Phase 8 stages in order:
 6. **8f** `src/nock.c` — `%tame` hint handler: parse `[label forth-source]`, idempotency guard, call `forth_eval_string`
 7. **8g** `src/ska.c` / `src/forth.s` — `TIMER@` + SKA formula cache + `BENCH` word
 
-**Phase 8** (after 7): Move Nock dispatch into Forth dictionary (see below).
+**Phase 9** (after 7): Move Nock dispatch into Forth dictionary (see below).
 
 ## SKA Layer Relationship
 
@@ -262,13 +262,13 @@ Forth KERNEL word → NOCK word → nock_eval()
 **`%wild` and SKA are complementary**: `%wild` provides runtime subject knowledge
 (which batteries are present); SKA uses that to classify every call site statically.
 
-**Phase 8** goes further: the `cook` pass resolves `%ds2` sites to Forth dictionary
+**Phase 9** goes further: the `cook` pass resolves `%ds2` sites to Forth dictionary
 entries by label, not `hot_state[]` C pointers. A jet becomes a named Forth word.
 Redefine the word at the REPL → the next `SKA` call rewires the call site immediately.
 
-## Phase 8 — Forth as Jet Dashboard
+## Phase 9 — Forth as Jet Dashboard
 
-In Phase 8, jets are ordinary Forth dictionary entries. The `cook` pass looks up the
+In Phase 9, jets are ordinary Forth dictionary entries. The `cook` pass looks up the
 label cord in the Forth dictionary instead of (or before) `hot_state[]`. This gives:
 
 - **Live-patchable jets**: redefine a word at the REPL → immediately available.
@@ -331,7 +331,7 @@ Context `jets`/`sky` passed via C-visible globals to avoid disrupting the stack 
 
 **First-call timing**: cook runs before `run_nomm1` evaluates. On first call `%tame`
 has not fired; `find_by_cord` returns NULL; DS2 site falls back to `nock_op9_continue`
-(correct). Pre-wiring kicks in on subsequent calls once the formula cache (Stage 8g) exists.
+(correct). Pre-wiring kicks in on subsequent calls once the formula cache (Stage 9g) exists.
 
 ### Stage Plan
 
@@ -385,9 +385,9 @@ Notes:
   written once when `hash_atom()` is first called on that atom.
 - For large atoms (4GB+) that cannot be RAM-resident, type-11 content addressing is
   the correct representation. The atom store hot cache maps 62-bit hash → atom struct;
-  the cold store (Phase 6) backs this with SD card block I/O.
+  the cold store (Phase 7) backs this with SD card block I/O.
 
-## Subject Knowledge Analysis (Phase 7)
+## Subject Knowledge Analysis (Phase 8)
 
 Reference: [`dozreg-toplud/ska`](https://github.com/dozreg-toplud/ska) — `desk/lib/skan.hoon`
 (2300 lines), `desk/sur/noir.hoon` (types), `desk/sur/sock.hoon` (`$cape`/`$sock`).
@@ -492,7 +492,7 @@ if jets != NULL:
 subject = core; formula = arm; goto loop
 ```
 
-### Dispatch at op 9 (Phase 7 — SKA annotated)
+### Dispatch at op 9 (Phase 8 — SKA annotated)
 
 ```
 core = run_nomm1(subject, c_nomm1, ...)  // %ds2 already resolved to jet_fn_t
@@ -531,12 +531,12 @@ core = run_nomm1(subject, c_nomm1, ...)  // %ds2 already resolved to jet_fn_t
 | 5b | Hot jets: dec/add/sub/mul/lth/gth/lte/gte/div/mod | DONE |
 | 5c | PILL loader (QEMU file loader at 0x10000000) | DONE |
 | 5d | Noun tag redesign (direct atom = raw integer) | DONE |
-| 6 | Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch | DONE |
+| 7 | Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch | DONE |
 | CI | QEMU raspi4b + 158 REPL tests + 5 kernel boot tests | DONE |
-| 7 | SKA: symbolic partial eval, `$nomm` AST, compile-time jet matching | COMPLETE ✅ |
-| 8 | Forth as jet dashboard: evaluator dispatch in dictionary | TODO |
+| 8 | SKA: symbolic partial eval, `$nomm` AST, compile-time jet matching | COMPLETE ✅ |
+| 9 | Forth as jet dashboard: evaluator dispatch in dictionary | TODO |
 
-PoC gate: Phases 0-7. Phase 8 is "turning it into a live-patchable OS."
+PoC gate: Phases 0-8. Phase 9 is "turning it into a live-patchable OS."
 
 ## Key Source References in the Codebase
 
@@ -544,8 +544,8 @@ PoC gate: Phases 0-7. Phase 8 is "turning it into a live-patchable OS."
 - `src/noun.h`     — noun tag constants, NOUN typedef, pack/unpack macros
 - `src/noun.c`     — cell/atom allocators, refcount
 - `src/nock.c`     — Nock 4K evaluator, op 11 hints, `%wild` dispatch, hot jets
-- `src/ska.h`      — SKA types: `cape_t`, `sock_t`, `nomm_t`, `bell_t`, `short_t`, `long_t` (Phase 7+)
-- `src/ska.c`      — SKA scan/cook passes, cape/sock ops (Phase 7+)
+- `src/ska.h`      — SKA types: `cape_t`, `sock_t`, `nomm_t`, `bell_t`, `short_t`, `long_t` (Phase 8+)
+- `src/ska.c`      — SKA scan/cook passes, cape/sock ops (Phase 8+)
 - `src/forth.s`    — Forth kernel: inner interpreter, primitives, QUIT, control flow
 - `src/boot.s`     — entry at `_start`, parks cores 1-3, zeros BSS, calls `main`
 - `src/uart.c`     — PL011 UART init/read/write
