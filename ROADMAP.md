@@ -403,7 +403,7 @@ initial sock. After SKA, op-9 dispatch skips `sock_match` entirely at
 |-------|---------|---------|
 | **7a** Types           | `src/ska.h`  | ✅ `cape_t`, `sock_t`, `nomm_t`, `nomm1_t`, `bell_t`, `site_t`, `short_t`, `long_t`, `cycle_t` |
 | **7b** Sock ops        | `src/ska.c`  | ✅ `cape_and/or`, `cape_app`, `sock_pull`, `sock_huge`, `sock_knit`, `sock_purr`, `sock_pack`, `sock_darn`, `dunno` |
-| **7c** Scan (linear)   | `src/ska.c`  | ✅ All opcodes; `%9` → `NOMM_DS2` or `NOMM_9` fallback; `SKNOCK` Forth word |
+| **7c** Scan (linear)   | `src/ska.c`  | ✅ All opcodes inc. Op2 partial eval; `%9` → `NOMM_DS2` or `NOMM_9` fallback; `SKNOCK` Forth word |
 | **7d** Memo cache      | `src/ska.c`  | ✅ Cross-arm cache keyed by `(formula, sub-sock)`; per-pass reset |
 | **7e** Loop detection  | `src/ska.c`  | ✅ `close()` heuristic, fols_stack, frond validation, redo-loop |
 | **7f** Cook pass       | `src/ska.c`  | ✅ `nomm → nomm-1`; `cook_nomm()`, `run_nomm1()`; static jet pre-wiring at DS2 sites |
@@ -422,7 +422,7 @@ Stage 9e is required for all tail-recursive Hoon gates (`dec`, `add`, etc.).
 
 ### Phase 9 — Forth as Jet Dashboard
 
-**STATUS: COMPLETE** — All stages 9a–9g done. 355 tests passing.
+**STATUS: COMPLETE** — All stages 9a–9g done. 376 tests passing.
 
 Move Nock evaluator dispatch into the Forth dictionary.
 
@@ -534,8 +534,9 @@ the word will be present and cook pre-wires the jet at O(1).
 | **9f** `%tame` handler | `src/nock.c`                  | ✅ Parse `[label forth-source]` clue, idempotency guard, call `forth_eval_string` |
 | **9g** Cache + bench   | `src/ska.c` / `src/forth.s`   | ✅ `TIMER@` (`mrs CNTVCT_EL0`); SKA formula cache (nomm1_t* keyed by formula noun); `BENCH` word; `EXECUTE` word |
 
-**All stages complete.** 355 tests passing (63 Nock reference vectors, 20 crash recovery,
-20 Forth primitives, 10 indirect atom hardening, plus existing regression suite).
+**All stages complete.** 376 tests passing (63 Nock reference vectors, 20 crash recovery,
+20 Forth primitives, 10 indirect atom hardening, 48 SKA coverage tests, plus existing
+regression suite).
 
 #### Key Design Decisions
 

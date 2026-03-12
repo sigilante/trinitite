@@ -217,7 +217,7 @@ CI: QEMU 9.2.0 from source (raspi4b).
 
 ## Immediate Tasks for This Agent
 
-Phase 9 is complete (all 355 tests passing). The PoC gate (Phases 0–9) is cleared.
+Phase 9 is complete (all 376 tests passing). The PoC gate (Phases 0–9) is cleared.
 The Forth dictionary IS the jet dashboard — thesis demonstrated.
 
 Next priorities:
@@ -526,11 +526,11 @@ core = run_nomm1(subject, c_nomm1, ...)  // %ds2 already resolved to jet_fn_t
 | 5c | PILL loader (QEMU file loader at 0x10000000) | DONE |
 | 5d | Noun tag redesign (direct atom = raw integer) | DONE |
 | 7 | Kernel loop: Arvo + Shrine shapes, UART framing, effect dispatch | DONE |
-| CI | QEMU raspi4b + 355 tests (REPL + Nock reference + crash recovery + hardening) | DONE |
+| CI | QEMU raspi4b + 376 tests (REPL + Nock reference + crash recovery + SKA coverage) | DONE |
 | 8 | SKA: symbolic partial eval, `$nomm` AST, compile-time jet matching | DONE |
 | 9 | Forth as jet dashboard: evaluator dispatch in dictionary | DONE |
 
-PoC gate: Phases 0–9 all DONE. **355 tests passing.** Next: Phases 10+ (pending external deps).
+PoC gate: Phases 0–9 all DONE. **376 tests passing.** Next: Phases 10+ (pending external deps).
 
 ## Key Source References in the Codebase
 
