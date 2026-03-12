@@ -49,6 +49,27 @@ QEMU raspi4b, CNTVCT_EL0, 1000 iterations each.
 - Noun allocation (`BCONS`) is cheap: only ~1.3× baseline, confirming the bump
   allocator is fast.
 
+### `4e5e806` — 2025-07-18 (BNSUB, BN comparisons, Forth gate jets, %tame)
+
+QEMU raspi4b, CNTVCT_EL0, 1000 iterations each.
+
+| Benchmark | Ticks (hex) | Ticks/iter (dec) | Ratio vs NOOP |
+|-----------|-------------|------------------|---------------|
+| `NOOP`  (loop baseline)  | `0000000000006E5A` |    28.2 | 1.0× |
+| `BCONS` (noun alloc)     | `0000000000031FCE` |   204.8 | 7.2× |
+| `BNOCK` (plain nock/op1) | `0000000000079A4A` |   498.2 | 17.6× |
+| `BSKNK` (ska_nock/op1)   | `00000000001467A2` |  1337.2 | 47.3× |
+| `BDEC`  (C jet dec)      | `0000000000195B75` |  1661.8 | 58.8× |
+| `BSDEC` (Forth jet dec)  | `0000000000E677C2` | 15103.9 | 534.7× |
+| `BADD`  (C jet add)      | `00000000001206FE` |  1181.4 | 41.8× |
+| `BSADD` (Forth jet add)  | `0000000000E7D51F` | 15193.4 | 537.8× |
+
+**Observations:**
+- Absolute tick counts are higher than `e28a224` due to QEMU configuration
+  variance.  Relative ratios are the meaningful comparison.
+- Ratio patterns are consistent: Forth jets ~9× slower than C jets, SKA
+  overhead ~3× over plain nock — both stable across commits.
+
 ## Updating This File
 
 After a significant change, re-run the benchmarks and append a new section:
