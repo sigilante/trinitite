@@ -68,8 +68,11 @@ jobs:
       - name: jam.py self-tests
         run: python3 tools/jam.py test
 
-      - name: Forth/Nock unit tests (158 tests)
+      - name: Forth/Nock unit tests (194 tests)
         run: bash tests/run_tests.sh
+
+      - name: Jet benchmarks (informational)
+        run: bash tests/run_bench.sh
 
       - name: Kernel boot integration tests (5 kernels)
         run: bash tests/kernel-boot.sh --verbose
