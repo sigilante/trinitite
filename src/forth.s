@@ -221,6 +221,20 @@ defcode "DPTH", 4, depth, 0
     str     x0, [DSP, #-8]!
     NEXT
 
+// EXECUTE ( xt -- )  execute execution token (entry address) on top of stack
+// The dispatched word sees IP pointing to the word after EXECUTE in the
+// current definition, so its NEXT resumes the calling colon word normally.
+defcode "EXECUTE", 7, execute_word, 0
+    ldr     W, [DSP], #8            // W = execution token (dict entry address)
+    ldr     x0, [W, #24]            // load codeword from entry+24
+    br      x0                      // dispatch (no NEXT — dispatched word uses its own)
+
+// TIMER@ ( -- u )  read AArch64 virtual counter (CNTVCT_EL0, ~54 MHz on RPi4)
+defcode "TIMER@", 6, timer_fetch, 0
+    mrs     x0, cntvct_el0
+    str     x0, [DSP, #-8]!
+    NEXT
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ARITHMETIC PRIMITIVES
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2649,6 +2663,12 @@ str_err_end:
 str_eval_err:
     .asciz  "EVAL error\r\n"
 
+// BENCH word source — compiled via forth_eval_string at boot.
+// ( xt n -- cycles ): run xt n times, return elapsed CNTVCT_EL0 ticks.
+str_bench_def:
+    .ascii  ": BENCH TIMER@ ROT ROT BEGIN OVER EXECUTE 1 - DUP 0 = UNTIL DROP DROP TIMER@ SWAP - ;"
+str_bench_def_end:
+
 // ═════════════════════════════════════════════════════════════════════════════
 // COLD START
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2688,6 +2708,13 @@ forth_main:
     ldr     x0, =word_latest + 32       // address of LATEST's storage cell
     ldr     x1, =word_kernel        // last defined entry (see defcode order)
     str     x1, [x0]
+
+    // Compile bootstrap words via forth_eval_string before entering QUIT.
+    // BENCH: ( xt n -- cycles ) — execute xt n times, return elapsed CNTVCT ticks.
+    ldr     x0, =str_bench_def
+    ldr     x1, =str_bench_def_end
+    sub     x1, x1, x0
+    bl      forth_eval_string
 
     // Print banner
     ldr     x0, =str_banner

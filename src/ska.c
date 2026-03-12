@@ -53,10 +53,121 @@ void ska_arena_reset(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Stage 8e — Loop detection state
+ * Stage 9g — Formula cache
  *
- * Global mutable state for the current scan pass.  Reset at the start of
- * each ska_nock() call (and on each redo-loop iteration).
+ * Maps formula noun → cached nomm1_t* (deep copy in persistent arena).
+ * On a cache hit, ska_nock skips scan+cook entirely and calls run_nomm1
+ * directly.  Cache arena is never reset.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+#define FCACHE_ARENA_SIZE (128 * 1024)  /* 128 KB for cached nomm1_t trees */
+#define FCACHE_SIZE       64            /* must be power of 2 */
+
+static uint8_t  fcache_arena[FCACHE_ARENA_SIZE];
+static uint32_t fcache_arena_off = 0;
+
+static void *fcache_alloc(uint32_t size)
+{
+    size = (size + 7) & ~7u;
+    if (fcache_arena_off + size > FCACHE_ARENA_SIZE) return (void *)0;
+    void *p = &fcache_arena[fcache_arena_off];
+    fcache_arena_off += size;
+    for (uint32_t i = 0; i < size; i++) ((uint8_t *)p)[i] = 0;
+    return p;
+}
+
+typedef struct { bool occupied; noun fml; nomm1_t *entry; } fcache_slot_t;
+static fcache_slot_t fcache[FCACHE_SIZE];
+
+static nomm1_t *nomm1_copy(const nomm1_t *src);
+
+static nomm1_t *fc1_new(void)
+{
+    return (nomm1_t *)fcache_alloc(sizeof(nomm1_t));
+}
+
+static nomm1_t *nomm1_copy(const nomm1_t *src)
+{
+    if (!src) return (nomm1_t *)0;
+    nomm1_t *dst = fc1_new();
+    if (!dst) return (nomm1_t *)0;
+    *dst = *src;  /* shallow copy: scalars, nouns, fn ptrs all correct */
+    /* Recursively copy child nomm1_t* pointers */
+    switch (src->tag) {
+    case NOMM_0: case NOMM_1: break;
+    case NOMM_3: case NOMM_4:
+        dst->n_unary.p = nomm1_copy(src->n_unary.p); break;
+    case NOMM_5:
+        dst->n5.p = nomm1_copy(src->n5.p);
+        dst->n5.q = nomm1_copy(src->n5.q); break;
+    case NOMM_6:
+        dst->n6.c = nomm1_copy(src->n6.c);
+        dst->n6.y = nomm1_copy(src->n6.y);
+        dst->n6.n = nomm1_copy(src->n6.n); break;
+    case NOMM_7:
+        dst->n7.p = nomm1_copy(src->n7.p);
+        dst->n7.q = nomm1_copy(src->n7.q); break;
+    case NOMM_8:
+        dst->n8.p = nomm1_copy(src->n8.p);
+        dst->n8.q = nomm1_copy(src->n8.q); break;
+    case NOMM_9:
+        dst->n9.core_fol = nomm1_copy(src->n9.core_fol); break;
+    case NOMM_10:
+        dst->n10.val_fol = nomm1_copy(src->n10.val_fol);
+        dst->n10.tgt_fol = nomm1_copy(src->n10.tgt_fol); break;
+    case NOMM_11:
+        dst->n11.clue = nomm1_copy(src->n11.clue);
+        dst->n11.main = nomm1_copy(src->n11.main); break;
+    case NOMM_12:
+        dst->n12.ref_fol = nomm1_copy(src->n12.ref_fol);
+        dst->n12.thunk_fol = nomm1_copy(src->n12.thunk_fol); break;
+    case NOMM_DIST:
+        dst->ndist.p = nomm1_copy(src->ndist.p);
+        dst->ndist.q = nomm1_copy(src->ndist.q); break;
+    case NOMM_2:
+        dst->n2.p = nomm1_copy(src->n2.p);
+        dst->n2.q = nomm1_copy(src->n2.q); break;
+    default: break;
+    }
+    return dst;
+}
+
+static uint32_t fhash(noun fml)
+{
+    uint64_t h = fml ^ (fml >> 32);
+    h ^= h >> 16;
+    return (uint32_t)(h & (FCACHE_SIZE - 1));
+}
+
+static nomm1_t *fcache_lookup(noun fml)
+{
+    uint32_t h = fhash(fml);
+    for (uint32_t i = 0; i < FCACHE_SIZE; i++) {
+        uint32_t s = (h + i) & (FCACHE_SIZE - 1);
+        if (!fcache[s].occupied) return (nomm1_t *)0;
+        if (fcache[s].fml == fml) return fcache[s].entry;
+    }
+    return (nomm1_t *)0;
+}
+
+static void fcache_insert(noun fml, nomm1_t *entry)
+{
+    uint32_t h = fhash(fml);
+    for (uint32_t i = 0; i < FCACHE_SIZE; i++) {
+        uint32_t s = (h + i) & (FCACHE_SIZE - 1);
+        if (!fcache[s].occupied) {
+            fcache[s].occupied = true;
+            fcache[s].fml      = fml;
+            fcache[s].entry    = entry;
+            return;
+        }
+    }
+        /* Cache full -- silently drop; correctness unaffected */
+}
+
+/* =========================================================================
+ * Loop detection state for the current scan pass.
+ * Reset at start of each ska_nock() call (and on each redo iteration).
  *
  * fols_stack  : current chain of open Nock-2 / Nock-9 analysis frames.
  *               Pushed before recursing into an arm body; popped on return.
@@ -66,7 +177,7 @@ void ska_arena_reset(void)
  *               Persists across redo iterations; grows monotonically.
  * g_fronds[]  : loop assumptions recorded during this scan pass.
  *               Validated when exiting a cycle; failures add to g_block.
- * ═══════════════════════════════════════════════════════════════════════════ */
+ * ======================================================================= */
 
 #define SKA_MAX_FOLS   64
 #define SKA_MAX_BLOCK  64
@@ -1068,6 +1179,13 @@ static noun eval_nomm(const nomm_t *n, noun sub,
 noun ska_nock(noun subject, noun formula,
               const wilt_t *jets, sky_fn_t sky)
 {
+    /* Stage 9g: check formula cache before scan+cook. */
+    {
+        nomm1_t *cached = fcache_lookup(formula);
+        if (cached)
+            return run_nomm1(cached, subject, jets, sky);
+    }
+
     /* g_block persists across retries; reset it only at start of a new call. */
     g_block_len = 0;
 
@@ -1098,6 +1216,9 @@ noun ska_nock(noun subject, noun formula,
             nomm1_t *cooked = cook_nomm(nomm, jets);
             if (!cooked)
                 return eval_nomm(nomm, subject, jets, sky);
+            /* Stage 9g: cache cooked result for future calls with same formula. */
+            nomm1_t *cached_copy = nomm1_copy(cooked);
+            if (cached_copy) fcache_insert(formula, cached_copy);
             return run_nomm1(cooked, subject, jets, sky);
         }
     }
@@ -1130,7 +1251,6 @@ static nomm1_t *nomm1_alloc(void)
     return n;
 }
 
-/*
 /*
  * cook_find_jet: try to pre-wire a jet at a DS2 call site.
  *

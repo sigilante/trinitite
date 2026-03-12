@@ -416,8 +416,8 @@ initial sock. After SKA, op-9 dispatch skips `sock_match` entirely at
 | **7g** Integration     | `src/forth.s` | ✅ `SKA-EN` variable, `NOCK` routes through SKA when set, `.SKA` stats word |
 | **7h** Tests           | `tests/run_tests.sh` | ✅ SKA-EN, .SKA no-crash, 182 tests total |
 
-Stage 8c alone gives partial benefit (non-looping direct calls annotated).
-Stage 8e is required for all tail-recursive Hoon gates (`dec`, `add`, etc.).
+Stage 9c alone gives partial benefit (non-looping direct calls annotated).
+Stage 9e is required for all tail-recursive Hoon gates (`dec`, `add`, etc.).
 
 **What we are NOT porting from `skan.hoon`**:
 - `%fast` hint processing — we use `%wild` only, `%fast` is intentionally ignored
@@ -530,13 +530,13 @@ the word will be present and cook pre-wires the jet at O(1).
 
 | Stage | File(s) | Content |
 |-------|---------|---------|
-| **8a** Dict lookup     | `src/forth.s` / `src/forth.h` | `find_by_cord(uint64_t cord) → entry*` exported as C-callable |
-| **8b** ABI bridge      | `src/forth.s` / `src/nock.h`  | `forth_call_jet(entry*, noun, jets, sky) → noun`; push/pop DSP convention |
-| **8c** cook_find_jet   | `src/ska.c`                   | Call `find_by_cord` before `hot_state[]`; wrap result in ABI bridge |
-| **8d** `.SKA` names    | `src/ska.c` / `src/forth.s`   | Print Forth word name at each jetted `%ds2` site in `.SKA` output |
-| **8e** `forth_eval_string` | `src/forth.s`             | C-callable Forth text evaluator; saves/restores TIB, STATE, HERE; runs WORD→FIND→EXECUTE loop; `setjmp` guard on parse error |
-| **8f** `%tame` handler | `src/nock.c`                  | Parse `[label forth-source]` clue, idempotency guard, call `forth_eval_string` |
-| **8g** Cache + bench   | `src/ska.c` / `src/forth.s`   | `TIMER@` (`mrs CNTVCT_EL0`); SKA formula cache (boil_t* keyed by formula noun); benchmark word comparing plain `NOCK` vs `SKNOCK` |
+| **9a** Dict lookup     | `src/forth.s` / `src/forth.h` | `find_by_cord(uint64_t cord) → entry*` exported as C-callable |
+| **9b** ABI bridge      | `src/forth.s` / `src/nock.h`  | `forth_call_jet(entry*, noun, jets, sky) → noun`; push/pop DSP convention |
+| **9c** cook_find_jet   | `src/ska.c`                   | Call `find_by_cord` before `hot_state[]`; wrap result in ABI bridge |
+| **9d** `.SKA` names    | `src/ska.c` / `src/forth.s`   | Print Forth word name at each jetted `%ds2` site in `.SKA` output |
+| **9e** `forth_eval_string` | `src/forth.s`             | C-callable Forth text evaluator; saves/restores TIB, STATE, HERE; runs WORD→FIND→EXECUTE loop; `setjmp` guard on parse error |
+| **9f** `%tame` handler | `src/nock.c`                  | Parse `[label forth-source]` clue, idempotency guard, call `forth_eval_string` |
+| **9g** Cache + bench   | `src/ska.c` / `src/forth.s`   | `TIMER@` (`mrs CNTVCT_EL0`); SKA formula cache (nomm1_t* keyed by formula noun); `BENCH` word; `EXECUTE` word |
 
 **Prerequisites**: Phase 8 COMPLETE ✅ — all 182 tests passing.
 
@@ -549,4 +549,40 @@ the word will be present and cook pre-wires the jet at O(1).
 | `%wild` unchanged | No modification | Full backward compat; `%tame` is strictly additive |
 | ABI bridge | DSP push/pop with global jets/sky context | Minimal Forth ABI disruption; no mixed-type stack frames |
 | cook_find_jet priority | Forth dict first, then `hot_state[]` | Live-defined words shadow static C jets (REPL always wins) |
-| First-call miss | Fall through to `nock_op9_continue` | Correct and safe; pre-wiring optimization requires formula cache (8g) |
+| First-call miss | Fall through to `nock_op9_continue` | Correct and safe; pre-wiring optimization requires formula cache (9g) |
+
+---
+
+## Phase 10 and Beyond — Planned (Pending)
+
+### Hardware Targets
+
+RPi 3 and RPi 4 are both supported. QEMU raspi4b is the CI target.
+
+### Phase 10 — North Integration
+
+**STATUS: PENDING EXTERNAL DEPENDENCY**
+
+North is an independent project (separate repo, not yet ready). When it is
+ready, integration will cover:
+
+- Mounting the Fock noun heap as a North block device
+- Forwarding `%give` effects to North subscribers
+- Receiving `%poke` events from North over UART/SPI
+
+North integration is deliberately excluded from the current roadmap until
+the North project reaches a stable API. Do not begin Phase 10 work until
+that dependency is resolved.
+
+### Phase 11 — SKA Phase 2 / Full Hoon Subset
+
+- Symbolic analysis of recursive Hoon gates (beyond the current redo-loop)
+- SKA output used for compile-time jet pre-wiring (Phase 5 design)
+- Hoon compiler bootstrap (minimal subset sufficient for kernel development)
+
+### Phase 12 — Large Atom Cold Store
+
+- BLAKE3 content-addressed atom store backed by SD card
+- Type-11 (content atom) tag fully implemented
+- Streaming BLAKE3 over 4GB+ atoms without full RAM residency
+

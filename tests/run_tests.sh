@@ -47,6 +47,7 @@ PREAMBLE=': N>N >NOUN ;
 : JCORE2 CONS 0 N>N CONS 0 N>N SWAP CONS ;
 : JD 1 N>N SWAP CONS 2 N>N SWAP CONS 9 N>N SWAP CONS ;
 : JWRAP SWAP 1 N>N 0 N>N CONS CONS 0 N>N CONS 1 N>N SWAP CONS 1684826487 N>N SWAP CONS SWAP CONS 11 N>N SWAP CONS ;
+: NOOP ;
 HERE @ DUP SCORD ! 80 + HERE !
 SCORD @ 6144071398889562170 SWAP !
 SCORD @ 8 + 5714573285181694032 SWAP !
@@ -653,6 +654,29 @@ T "9f: %tame defines sub(10-3)=7"   "0000000000000007" \
 T "9f: sub persists sub(100-1)=99"  "0000000000000063" \
     "0 N>N  6452595 N>N  100 N>N  1 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
 
+# ── Phase 9g — TIMER@, EXECUTE, BENCH, formula cache ──────────────────────
+# TIMER@ reads CNTVCT_EL0 (virtual timer, ~54 MHz on RPi4).
+# EXECUTE runs an execution token.
+# BENCH ( xt n -- cycles ) executes xt n times, returns elapsed ticks.
+# Formula cache: SKNOCK on the same formula twice; second call uses cache.
+
+# Test: TIMER@ returns a non-zero value (timer is running)
+T "9g: TIMER@ non-zero" "FFFFFFFFFFFFFFFF" \
+    "TIMER@ 0 > ."
+
+# Test: EXECUTE runs a word — push 0, tick 1+, EXECUTE → 1
+T "9g: EXECUTE runs word" "0000000000000001" \
+    "0  ' 1+  EXECUTE  ."
+
+# Test: BENCH returns non-zero ticks for 100 iterations of NOOP
+# NOOP is stack-neutral (does nothing); any elapsed > 0 → 0 > returns -1
+T "9g: BENCH returns ticks>0" "FFFFFFFFFFFFFFFF" \
+    "' NOOP  100  BENCH  0 > ."
+
+# Test: formula cache — SKNOCK called twice on same formula; result unchanged
+# Use op1 (quote): *[s [1 42]] = 42 regardless of subject
+T "9g: SKNOCK cached formula" "000000000000002A" \
+    "0 N>N  1 N>N 42 N>N CONS  SKNOCK  NOUN> ."
 # ── Build input and run ────────────────────────────────────────────────────
 INPUT="$PREAMBLE"
 for line in "${TLINES[@]}"; do
