@@ -712,6 +712,73 @@ T "ska op10: edit axis 2 head" "0000000000000063" \
 T "ska op11: static hint"      "000000000000002A" \
     "42 N>N  11 N>N 7 N>N 0 N>N 1 N>N CONS CONS CONS  SKNOCK NOUN> ."
 
+# op 11 dynamic hint — clue is evaluated, body is returned
+# *[42 [11 [1 [1 0]] [4 [0 1]]]] = 43 (clue [1 0] → 0, body = inc 42)
+T "ska op11: dynamic hint"     "000000000000002B" \
+    "42 N>N  11 N>N  1 N>N  1 N>N 0 N>N CONS  CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS  SKNOCK NOUN> ."
+
+# op 3 (cell?) via SKNOCK — cell argument → YES (0)
+# *[[1 2] [3 [0 1]]] = 0
+T "ska op3: cell? YES"         "0000000000000000" \
+    "1 2 C>N  3 N>N 0 N>N 1 N>N CONS CONS  SKNOCK NOUN> ."
+# op 3 (cell?) via SKNOCK — atom argument → NO (1)
+# *[[1 2] [3 [0 2]]] = 1 (head is atom 1)
+T "ska op3: cell? NO"          "0000000000000001" \
+    "1 2 C>N  3 N>N 0 N>N 2 N>N CONS CONS  SKNOCK NOUN> ."
+
+# op 6 with computed condition (op3) — type dispatch
+# *[42 [6 [3 [0 1]] [1 10] [1 20]]] = 20 (42 is atom → wut=NO=1 → else)
+T "ska op6: atom->else"       "0000000000000014" \
+    "42 N>N  6 N>N  3 N>N 0 N>N 1 N>N CONS CONS  1 N>N 10 N>N CONS  1 N>N 20 N>N CONS  CONS CONS CONS  SKNOCK NOUN> ."
+# *[[1 2] [6 [3 [0 1]] [1 10] [1 20]]] = 10 ([1 2] is cell → wut=YES=0 → then)
+T "ska op6: cell->then"       "000000000000000A" \
+    "1 2 C>N  6 N>N  3 N>N 0 N>N 1 N>N CONS CONS  1 N>N 10 N>N CONS  1 N>N 20 N>N CONS  CONS CONS CONS  SKNOCK NOUN> ."
+
+# op 7 (compose) — triple inc: *[5 [7 [4 [0 1]] [7 [4 [0 1]] [4 [0 1]]]]] = 8
+T "ska op7: triple inc"        "0000000000000008" \
+    "5 N>N  7 N>N  4 N>N 0 N>N 1 N>N CONS CONS  7 N>N  4 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS  CONS  CONS  CONS  SKNOCK NOUN> ."
+
+# op 8 (push) then deep use — *[5 [8 [4 [0 1]] [4 [0 2]]]] = 7
+# push inc(5)=6, new subject = [6 5], [4 [0 2]] = inc(head=6) = 7
+T "ska op8: push then inc"     "0000000000000007" \
+    "5 N>N  8 N>N  4 N>N 0 N>N 1 N>N CONS CONS  4 N>N 0 N>N 2 N>N CONS CONS  CONS CONS  SKNOCK NOUN> ."
+
+# op 8 + op 5 comparison — *[42 [8 [1 42] [5 [0 2] [0 3]]]] = YES (0)
+# push 42, subject=[42 42], eq(head, tail) = YES
+T "ska op8+op5: pin and eq"    "0000000000000000" \
+    "42 N>N  8 N>N  1 N>N 42 N>N CONS  5 N>N  0 N>N 2 N>N CONS  0 N>N 3 N>N CONS  CONS CONS  CONS CONS  SKNOCK NOUN> ."
+# *[42 [8 [1 99] [5 [0 2] [0 3]]]] = NO (1) (99 ≠ 42)
+T "ska op8+op5: pin neq"       "0000000000000001" \
+    "42 N>N  8 N>N  1 N>N 99 N>N CONS  5 N>N  0 N>N 2 N>N CONS  0 N>N 3 N>N CONS  CONS CONS  CONS CONS  SKNOCK NOUN> ."
+
+# op 10 (hax) edit tail — *[[10 20] [10 [3 [1 99]] [0 1]]] → [10 99]
+# edit axis 3 (tail) to 99, verify head unchanged
+T "ska op10: edit tail"        "000000000000000A" \
+    "10 20 C>N  10 N>N  3 N>N  1 N>N 99 N>N CONS  CONS  0 N>N 1 N>N CONS  CONS CONS  SKNOCK CAR NOUN> ."
+
+# op 2 with two-step compose — *[42 [2 [4 [0 1]] [1 [4 [0 1]]]]] = 44
+# b = [4 [0 1]] → inc(42) = 43  (new subject)
+# c = [1 [4 [0 1]]] → [4 [0 1]] (known formula)
+# *[43 [4 [0 1]]] = 44
+T "ska op2: chained inc"       "000000000000002C" \
+    "42 N>N  2 N>N  4 N>N 0 N>N 1 N>N CONS CONS  1 N>N  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS CONS  SKNOCK NOUN> ."
+
+# op 2 with known formula applied to constant subject
+# *[3 [2 [1 3] [1 [4 [0 1]]]]] = 4
+# b = [1 3] → 3, c = [1 [4 [0 1]]] → [4 [0 1]]
+# *[3 [4 [0 1]]] = 4
+T "ska op2: const sub inc"     "0000000000000004" \
+    "3 N>N  2 N>N  1 N>N 3 N>N CONS  1 N>N  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS CONS  SKNOCK NOUN> ."
+
+# op 6 condition from op5: *[7 [6 [5 [0 1] [1 7]] [1 100] [4 [0 1]]]] = 100
+# 7 == 7 → YES(0) → then branch → 100
+T "ska op6: computed eq YES"   "0000000000000064" \
+    "7 N>N  6 N>N  5 N>N  0 N>N 1 N>N CONS  1 N>N 7 N>N CONS  CONS CONS  1 N>N 100 N>N CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS CONS  SKNOCK NOUN> ."
+# *[8 [6 [5 [0 1] [1 7]] [1 100] [4 [0 1]]]] = 9
+# 8 ≠ 7 → NO(1) → else branch → inc(8) = 9
+T "ska op6: computed eq NO"    "0000000000000009" \
+    "8 N>N  6 N>N  5 N>N  0 N>N 1 N>N CONS  1 N>N 7 N>N CONS  CONS CONS  1 N>N 100 N>N CONS  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS CONS  SKNOCK NOUN> ."
+
 # jet dispatch via SKNOCK — %wild hint scoped, fallback in NOMM_9 fires jet
 T "ska jet dec: dec(5)=4"      "0000000000000004" \
     "0 N>N  6514020 N>N  5 N>N  JCORE1 JD JWRAP  SKNOCK  NOUN> ."
