@@ -217,18 +217,17 @@ CI: QEMU 9.2.0 from source (raspi4b), 158 REPL tests + 5 kernel boot tests all p
 
 ## Immediate Tasks for This Agent
 
-**Phase 7: Implement SKA in C** — 8 stages, see ROADMAP.md for full detail.
+**Phase 8: Forth as Jet Dashboard** — 7 stages, see ROADMAP.md for full detail.
 
-The stages in order (each builds on the previous):
-1. **7a** `src/ska.h` — types: `cape_t`, `sock_t`, `nomm_t`, `nomm1_t`, `bell_t`, `short_t`, `long_t`, `cycle_t` ✅
-2. **7b** `src/ska.c` — cape/sock ops: `cape_app`, `sock_pull`, `sock_huge`, `sock_knit`, `sock_purr`, `sock_darn`, `dunno` ✅
-3. **7c** `src/ska.c` — scan pass for all opcodes; `%9` → `NOMM_DS2`/`NOMM_9`; `SKNOCK` Forth word ✅
-4. **7d** `src/ska.c` — memo cache (cross-arm, keyed by `(formula, sub-sock)`) ✅
-5. **7e** `src/ska.c` — loop detection: `close()` heuristic, fols_stack, frond validation, redo-loop ✅
-6. **7f** `src/ska.c` — cook pass: `cook_nomm()` converts `nomm_t → nomm1_t`; `run_nomm1()` interpreter; static jet pre-wiring at DS2 sites via `cook_find_jet()` ✅
-7. **7g** `src/forth.s` — `SKA-EN` defvar (controls NOCK routing), `.SKA` stats word (`ska_print_stats`), wire `NOCK` to `ska_nock` when `SKA-EN` is set ✅
-8. **7h** `tests/run_tests.sh` — 5 new tests: SKA-EN routing, .SKA no-crash; 182 tests total ✅
-8. **7h** `tests/run_tests.sh` — SKA-specific tests
+Phase 7 is complete (all 182 tests passing). Phase 8 stages in order:
+
+1. **8a** `src/forth.s` — `find_by_cord(uint64_t cord) → entry*` C-callable dict search by label cord
+2. **8b** `src/forth.s` — ABI bridge: `forth_call_jet(entry*, noun core, jets, sky) → noun`; DSP push/pop convention
+3. **8c** `src/ska.c` — extend `cook_find_jet`: check Forth dict via `find_by_cord` before `hot_state[]`
+4. **8d** `src/ska.c` / `src/forth.s` — `.SKA` prints Forth word name at each jetted `%ds2` site
+5. **8e** `src/forth.s` — `forth_eval_string(src, len)`: C-callable Forth text evaluator with `setjmp` guard
+6. **8f** `src/nock.c` — `%tame` hint handler: parse `[label forth-source]`, idempotency guard, call `forth_eval_string`
+7. **8g** `src/ska.c` / `src/forth.s` — `TIMER@` + SKA formula cache + `BENCH` word
 
 **Phase 8** (after 7): Move Nock dispatch into Forth dictionary (see below).
 
@@ -267,10 +266,10 @@ Forth KERNEL word → NOCK word → nock_eval()
 entries by label, not `hot_state[]` C pointers. A jet becomes a named Forth word.
 Redefine the word at the REPL → the next `SKA` call rewires the call site immediately.
 
-## Future: Forth as Jet Dashboard (Phase 8)
+## Phase 8 — Forth as Jet Dashboard
 
 In Phase 8, jets are ordinary Forth dictionary entries. The `cook` pass looks up the
-label string in the Forth dictionary instead of `hot_state[]`. This gives:
+label cord in the Forth dictionary instead of (or before) `hot_state[]`. This gives:
 
 - **Live-patchable jets**: redefine a word at the REPL → immediately available.
 - **No recompilation**: add/change jets without reflashing.
@@ -279,6 +278,72 @@ label string in the Forth dictionary instead of `hot_state[]`. This gives:
 
 C stays for: allocator (`noun.c`), UART, performance-critical inner-loop jets.
 Only the *dispatch decision* moves to Forth.
+
+### `%tame` Hint
+
+A new hint `%tame` embeds Forth jet source directly in a Nock program:
+
+```
+%tame clue = [label forth-source]    (cord × cord)
+```
+
+When `%tame` fires:
+1. Check `find_by_cord(label)` — if already defined, skip (idempotent).
+2. Otherwise call `forth_eval_string(forth-source)` to compile the word live.
+
+`%tame` carries only the *definition*. `%wild` carries the *identity* (`$sock`).
+
+### `%tame` + `%wild` Two-Hint Pattern
+
+```hoon
+~>  %tame.[label forth-source]   :: outer: compile the Forth word
+~>  %wild.wilt                   :: inner: scope label→sock for computation
+computation
+```
+
+Nock representation: `[11 [%tame clue-t] [11 [%wild clue-w] d]]`
+
+Evaluation order (outer-first):
+1. `%tame` fires → Forth word compiled into dictionary
+2. `%wild` fires → wilt `(label → sock)` scoped over `d`
+3. `d` evaluates → op 9 → `nock_op9_continue` finds label in wilt →
+   `find_by_cord` finds the Forth word → ABI bridge calls it
+
+`%wild` is **unchanged**. `%tame` is strictly additive. Programs using only `%wild`
+with `hot_state[]` jets continue to work without modification.
+
+### ABI Bridge
+
+```c
+noun forth_call_jet(dict_entry_t *entry, noun core,
+                    const wilt_t *jets, sky_fn_t sky);
+```
+
+Convention: push `core` onto DSP (x26), dispatch to codeword, pop result.
+Context `jets`/`sky` passed via C-visible globals to avoid disrupting the stack frame.
+
+### cook_find_jet Priority
+
+```
+1. find_by_cord(label) → Forth dict  (live-defined words win)
+2. hot_lookup(label)   → hot_state[] (static C fallback)
+```
+
+**First-call timing**: cook runs before `run_nomm1` evaluates. On first call `%tame`
+has not fired; `find_by_cord` returns NULL; DS2 site falls back to `nock_op9_continue`
+(correct). Pre-wiring kicks in on subsequent calls once the formula cache (Stage 8g) exists.
+
+### Stage Plan
+
+| Stage | Description |
+|-------|-------------|
+| **8a** | `find_by_cord(cord) → entry*`: Forth dict search by uint64 label cord, exported as C-callable |
+| **8b** | ABI bridge: `forth_call_jet(entry*, noun, jets, sky) → noun` — push/pop DSP |
+| **8c** | `cook_find_jet` in `ska.c`: check `find_by_cord` before `hot_state[]` |
+| **8d** | `.SKA` updated to print Forth word name at each jetted `%ds2` site |
+| **8e** | `forth_eval_string(src, len)`: C-callable Forth text evaluator; `setjmp` error guard |
+| **8f** | `%tame` hint handler: parse clue, idempotency guard, call `forth_eval_string` |
+| **8g** | `TIMER@` + SKA formula cache + benchmark word |
 
 ## Noun Representation
 
