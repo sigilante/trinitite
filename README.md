@@ -5,28 +5,30 @@
 
 Trinitite is a tiny operating system for Raspberry Pi 4/5, written in Forth with a C memory arena.  It boots directly into a Forth/Nock REPL, with no userspace/kernel distinction.  The kernel provides a minimal set of primitives for working with nouns, evaluating Nock formulas, and loading jammed atoms from QEMU's file-loader device.  The REPL supports building and evaluating arbitrary Nock subject/formula pairs, either by hand or by loading pre-jammed pairs via PILL.
 
-Trinitite is an experimental platform in which I jammed a lot of half-baked ideas, like live jet loading (as Forth words), a hash-based indirect atom arena, and a Forth-based implementation of a Nock standard library.
+Trinitite is an experimental platform into which I jammed a lot of half-baked ideas, like live jet loading (as Forth words), a hash-based indirect atom arena, variable kernel shapes, and a Forth-based implementation of a Nock standard library.  It is very much a dynamic work in progress.
 
 ## Building
 
-```
+```sh
 make
 ```
 
 Cross-compile for CI (Ubuntu):
 
-```
+```sh
 make CC=aarch64-linux-gnu-gcc LD=aarch64-linux-gnu-ld \
      OBJCOPY=aarch64-linux-gnu-objcopy
 ```
 
 ## Running
 
-```
+```sh
 make run          # boots into the Forth REPL
 make debug        # boots under GDB
 make test         # run regression suite (376 tests)
 ```
+
+Tests and benchmarks are [available](./BENCHMARK.md).
 
 ## REPL basics
 
@@ -47,6 +49,8 @@ the key words for working with them:
 | `PILL` | `( -- atom )` | load jammed atom from QEMU file loader |
 | `.` | `( n -- )` | print top of stack as 16-digit hex |
 | `N.` | `( noun -- )` | print atom as decimal |
+
+See the [Forth documentation](./FORTH.md) for more details on the Forth environment and available words.
 
 ## Running arbitrary Nock subject/formula pairs
 
