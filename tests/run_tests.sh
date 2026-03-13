@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fock regression test suite — Nock opcodes 0-11 + SLOT
+# Trinitite regression test suite — Nock opcodes 0-11 + SLOT
 # Usage: ./tests/run_tests.sh [--verbose]
 #
 # Each test feeds one Forth expression to the REPL and checks the hex

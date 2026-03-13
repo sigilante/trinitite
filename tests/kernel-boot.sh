@@ -86,9 +86,9 @@ boot_pill_event42() {
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
-check "no-pill: REPL boot"         "Fock v0.1"             "$(boot_nopill)"
-check "null-arvo: kernel banner"   "fock arvo"             "$(boot_pill   "$TMPDIR_PILLS/null-arvo.pill")"
-check "null-shrine: kernel banner" "fock shrine"           "$(boot_pill   "$TMPDIR_PILLS/null-shrine.pill")"
+check "no-pill: REPL boot"         "Trinitite v0.1"        "$(boot_nopill)"
+check "null-arvo: kernel banner"   "trinitite arvo"        "$(boot_pill   "$TMPDIR_PILLS/null-arvo.pill")"
+check "null-shrine: kernel banner" "trinitite shrine"      "$(boot_pill   "$TMPDIR_PILLS/null-shrine.pill")"
 check "hint-arvo: %slog on event"  "000000000000002a"      "$(boot_pill_event42 "$TMPDIR_PILLS/hint-arvo.pill")"
 check "hint-shrine: %slog on event" "000000000000002a"     "$(boot_pill_event42 "$TMPDIR_PILLS/hint-shrine.pill")"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fock jet benchmarks — informational, always exits 0
+# Trinitite jet benchmarks — informational, always exits 0
 #
 # Boots the kernel in QEMU and runs BENCH on each target word ITERS times,
 # printing elapsed CNTVCT_EL0 ticks.  No assertions are made — ticks in QEMU
@@ -95,7 +95,7 @@ while IFS= read -r line; do
 done <<< "$RAW"
 
 # ── Print results table ────────────────────────────────────────────────────
-echo "=== Fock Jet Benchmarks (${ITERS} iterations, CNTVCT_EL0 ticks) ==="
+echo "=== Trinitite Jet Benchmarks (${ITERS} iterations, CNTVCT_EL0 ticks) ==="
 echo ""
 printf "%-26s  %s\n" "Benchmark" "Ticks (hex)"
 printf "%-26s  %s\n" "--------------------------" "----------------"

@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * Fock physical memory map
+ * Trinitite physical memory map
  * RPi 3: 1GB RAM (0x00000000 - 0x3FFFFFFF)
  * MMIO:  0x3F000000 - 0x3FFFFFFF (reserved, do not use)
  *

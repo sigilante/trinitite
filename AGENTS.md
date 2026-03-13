@@ -1,8 +1,8 @@
-# Fock — Agent Briefing
+# Trinitite — Agent Briefing
 
 ## What This Project Is
 
-**Fock** is a bare-metal Nock VM implemented as a Forth kernel on AArch64 (Raspberry Pi 3/4).
+**Trinitite** is a bare-metal Nock VM implemented as a Forth kernel on AArch64 (Raspberry Pi 3/4).
 The name reflects the dual nature: **Fo**rth + No**ck**.
 
 The research thesis: a Nock 4K evaluator can run as Forth words on bare-metal AArch64, with

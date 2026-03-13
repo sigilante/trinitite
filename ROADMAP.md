@@ -574,7 +574,7 @@ regression suite).
 North is an independent project (separate repo, not yet ready). When it is
 ready, integration will cover:
 
-- Mounting the Fock noun heap as a North block device
+- Mounting the Trinitite noun heap as a North block device
 - Forwarding `%give` effects to North subscribers
 - Receiving `%poke` events from North over UART/SPI
 

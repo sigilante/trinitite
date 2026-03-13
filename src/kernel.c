@@ -129,7 +129,7 @@ static noun build_slam_formula(void) {
 void arvo_loop(noun kernel_init) {
     volatile noun kernel = kernel_init;
     noun slam = build_slam_formula();
-    uart_puts("\r\nfock arvo\r\n");
+    uart_puts("\r\ntrinitite arvo\r\n");
 
     for (;;) {
         if (setjmp(nock_abort) != 0) {
@@ -150,7 +150,7 @@ void shrine_loop(noun kernel_init) {
     volatile noun kernel = kernel_init;
     volatile noun causes = NOUN_ZERO;
     noun slam = build_slam_formula();
-    uart_puts("\r\nfock shrine\r\n");
+    uart_puts("\r\ntrinitite shrine\r\n");
 
     for (;;) {
         if (setjmp(nock_abort) != 0) {

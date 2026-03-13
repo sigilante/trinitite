@@ -1,5 +1,5 @@
 // src/forth.s
-// Fock Forth Kernel — AArch64 bare metal
+// Trinitite Forth Kernel — AArch64 bare metal
 // Phase 1: Inner interpreter + primitives + QUIT loop
 //
 // ── Register assignments ─────────────────────────────────────────────────────
@@ -2809,7 +2809,7 @@ puts_uart:
     .balign 4
 
 str_banner:
-    .ascii  "\r\nFock v0.1  AArch64 Forth\r\n"
+    .ascii  "\r\nTrinitite v0.1  AArch64 Forth\r\n"
 str_banner_end:
 
 str_ok:
