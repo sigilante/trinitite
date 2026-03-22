@@ -869,7 +869,7 @@ T "ska op2: memo hit via distribution"  "0000000000000006" \
 #     to nock_ex(core, bell.fol, ...) to evaluate the resolved formula.
 # *[5 [2 [4 [0 1]] [1 [4 [0 1]]]]] = *[inc(5) [4 [0 1]]] = *[6 [4 [0 1]]] = 7
 T "ska op2: DS2 inc subject formula"  "0000000000000007" \
-    "5 N>N  2 N>N  4 N>N 0 N>N 1 N>N CONS CONS  1 N>N  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS  SKNOCK NOUN> ."
+    "5 N>N  2 N>N  4 N>N 0 N>N 1 N>N CONS CONS  1 N>N  4 N>N 0 N>N 1 N>N CONS CONS  CONS CONS CONS  SKNOCK NOUN> ."
 
 # (d) DS2 with resolved formula [7 [4 [0 1]] [4 [0 1]]] (double-inc via op7).
 #     Fresh scan recurses into op7, exercising the full scan path for a complex
