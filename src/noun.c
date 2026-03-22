@@ -288,13 +288,33 @@ int noun_pill_shape = 0;   /* 0=Arvo, 1=Shrine; set by pill_load */
 
 static uint64_t pill_scratch[PILL_MAX_LIMBS];
 
-noun pill_load(void) {
-    volatile uint8_t *base = (volatile uint8_t *)PILL_BASE;
+/* Embedded pill: linked into .rodata via src/pill_embed.s (.incbin pill.bin). */
+extern uint8_t _pill_embed_start[];
+extern uint8_t _pill_embed_end[];
 
-    /* Read 8-byte little-endian byte count */
+noun pill_load(void) {
+    const uint8_t *base;
+
+    /*
+     * Priority 1: QEMU -device loader places pill at PILL_BASE.
+     *   On QEMU without the loader, that region is zeroed → nbytes==0 → skip.
+     * Priority 2: embedded pill baked into the binary (real hardware).
+     */
     uint64_t nbytes = 0;
+    const uint8_t *qbase = (const uint8_t *)PILL_BASE;
     for (int i = 0; i < 8; i++)
-        nbytes |= (uint64_t)base[i] << (i * 8);
+        nbytes |= (uint64_t)qbase[i] << (i * 8);
+
+    if (nbytes > 0) {
+        base = qbase;           /* QEMU override */
+    } else {
+        base = _pill_embed_start;
+        if (base >= _pill_embed_end)
+            return 0;           /* no embedded pill */
+        nbytes = 0;
+        for (int i = 0; i < 8; i++)
+            nbytes |= (uint64_t)base[i] << (i * 8);
+    }
 
     if (nbytes == 0)
         return 0;   /* C null — sentinel for "no pill"; KERNEL checks cbz x0 */
@@ -307,7 +327,7 @@ noun pill_load(void) {
     if (nlimbs > PILL_MAX_LIMBS) nlimbs = PILL_MAX_LIMBS;
 
     uint8_t *dst = (uint8_t *)pill_scratch;
-    volatile uint8_t *src = base + 16;
+    volatile uint8_t *src = (volatile uint8_t *)(base + 16);
     for (uint64_t i = 0; i < nlimbs * 8; i++)
         dst[i] = (i < nbytes) ? src[i] : 0;
 

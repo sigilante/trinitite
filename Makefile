@@ -15,7 +15,7 @@ CFLAGS  = -Wall -O2 -ffreestanding -nostdlib -nostartfiles \
           -I$(SRCDIR)
 LDFLAGS = -T $(SRCDIR)/linker.ld -nostdlib -no-pie
 
-OBJS    = boot.o uart.o noun.o bignum.o blake3.o nock.o setjmp.o jam.o kernel.o ska.o forth.o main.o
+OBJS    = boot.o uart.o noun.o bignum.o blake3.o nock.o setjmp.o jam.o kernel.o ska.o forth.o pill_embed.o main.o
 
 all: $(TARGET).img
 
@@ -27,6 +27,15 @@ all: $(TARGET).img
 
 $(TARGET).elf: $(OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^
+
+# Create an empty stub pill if none exists (so the build doesn't fail).
+# Replace with a real pill using: python3 tools/mkpill.py <jam> <arvo|shrine> pill.bin
+pill.bin:
+	@echo "No pill.bin found; creating empty stub (KERNEL will return no-pill)"
+	python3 -c "import struct; open('pill.bin','wb').write(struct.pack('<Q',0)+bytes(8))"
+
+pill_embed.o: src/pill_embed.s pill.bin
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET).img: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@
@@ -76,5 +85,4 @@ test:
 
 clean:
 	rm -f *.o *.elf *.img
-
 .PHONY: all run run-pill run-kernel debug deploy test clean
