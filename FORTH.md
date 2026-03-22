@@ -30,11 +30,11 @@ serialization.
 ## 1. Quick Start
 
 ```bash
-make          # build kernel8.img
-make run      # boot in QEMU (UART on stdout)
-make test     # run 157-test regression suite
-make debug    # QEMU with GDB stub (-s -S); starts aarch64-elf-gdb
-make run-pill PILL=myformula.bin   # boot and pre-load a noun pill
+make  # build kernel8.img
+make run  # boot in QEMU (UART on stdout)
+make test  # run 157-test regression suite
+make debug  # QEMU with GDB stub (-s -S); starts aarch64-elf-gdb
+make run-pill PILL=myformula.bin  # boot and pre-load a noun pill
 ```
 
 The REPL appears over UART (stdout in QEMU `-nographic`).
@@ -52,10 +52,10 @@ and executed.
 `BASE` defaults to **10**.  Numbers are parsed in the current base.
 
 ```forth
-42            \ decimal 42
-BASE 16 !     \ switch to hexadecimal
-FF            \ hex 255 (only after BASE 16)
-BASE 10 !     \ restore
+42  \ decimal 42
+BASE 16 !  \ switch to hexadecimal
+FF  \ hex 255 (only after BASE 16)
+BASE 10 !  \ restore
 ```
 
 > **No `0x` prefix.**  Hex digits only work after `BASE 16 !`.  Urbit cord values and
@@ -212,10 +212,10 @@ Variable names push their **address**; use `@` / `!` to read / write.
 
 ```forth
 : SQUARE ( n -- n^2 )  DUP * ;
-: CUBE   ( n -- n^3 )  DUP SQUARE * ;
+: CUBE  ( n -- n^3 )  DUP SQUARE * ;
 
-5 SQUARE .   \ 0000000000000019  (= 25)
-3 CUBE .     \ 000000000000001B  (= 27)
+5 SQUARE .  \ 0000000000000019  (= 25)
+3 CUBE .  \ 000000000000001B  (= 27)
 ```
 
 Stack comments `( before -- after )` are conventional; the parser ignores them
@@ -228,21 +228,21 @@ known at compile time.
 
 ```forth
 : FACT ( n -- n! )
-    DUP 1 > IF
-        DUP 1- RECURSE *
-    ELSE
-        DROP 1
-    THEN ;
+  DUP 1 > IF
+  DUP 1- RECURSE *
+  ELSE
+  DROP 1
+  THEN ;
 
-5 FACT .   \ 0000000000000078  (= 120)
+5 FACT .  \ 0000000000000078  (= 120)
 ```
 
 ### IF / ELSE / THEN
 
 ```forth
 : SIGN ( n -- -1|0|1 )
-    DUP 0= IF  DROP 0  EXIT  THEN
-    0< IF  -1  ELSE  1  THEN ;
+  DUP 0= IF  DROP 0  EXIT  THEN
+  0< IF  -1  ELSE  1  THEN ;
 ```
 
 Condition is Forth-boolean: `0` = false, any non-zero = true.
@@ -253,12 +253,12 @@ Repeats until condition is **true** (non-zero):
 
 ```forth
 : COUNTDOWN ( n -- )
-    BEGIN
-        DUP .  1-
-    DUP 0= UNTIL
-    DROP ;
+  BEGIN
+  DUP .  1-
+  DUP 0= UNTIL
+  DROP ;
 
-5 COUNTDOWN   \ 0000000000000005 0000000000000004 ... 0000000000000001
+5 COUNTDOWN  \ 0000000000000005 0000000000000004 ... 0000000000000001
 ```
 
 ### BEGIN / AGAIN — infinite loop
@@ -273,13 +273,13 @@ Exits when condition is **false** (zero) at WHILE:
 
 ```forth
 : SUM-TO ( n -- sum )
-    0 SWAP              \ ( sum n )
-    BEGIN DUP 0> WHILE
-        OVER + SWAP 1-  \ add n to sum; decrement n
-    REPEAT
-    DROP ;
+  0 SWAP  \ ( sum n )
+  BEGIN DUP 0> WHILE
+  OVER + SWAP 1-  \ add n to sum; decrement n
+  REPEAT
+  DROP ;
 
-10 SUM-TO .   \ 0000000000000037  (= 55)
+10 SUM-TO .  \ 0000000000000037  (= 55)
 ```
 
 ---
@@ -297,7 +297,7 @@ Every Nock noun is a 64-bit tagged word.  The tag occupies the top two bits:
 **Direct atoms are their values.**  `direct(42) == 42`.  The noun word for the
 integer 42 is the integer 42.  No encoding needed for small values.
 
-`42 >NOUN .` prints `000000000000002A` — the noun word IS the value.
+`42 .` prints `000000000000002A` — the noun word IS the value.
 
 **Indirect atoms** arise when a value ≥ 2^63.  Their identity is the 62-bit prefix of
 their BLAKE3 content hash, stored in an open-addressed hash table.  Two atoms with
@@ -317,16 +317,15 @@ the same bit pattern share the same noun word, so equality is `==`.
 
 | Word    | Stack effect      | Description |
 |---------|-------------------|-------------|
-| `>NOUN` | `( n -- noun )`   | Clear bit 63; wrap integer as direct atom |
-| `NOUN>` | `( noun -- n )`   | Clear bit 63; extract integer from direct atom |
+| `>NOUN` | `( n -- noun )`   | Clears bit 63; no-op for values < 2⁶³ |
+| `NOUN>` | `( noun -- n )`   | Clears bit 63; no-op for values < 2⁶³ |
 
-For atoms that fit in 63 bits, these are effectively identity operations.
-`NOUN>` on a cell or indirect atom returns the raw 64-bit noun word unchanged
-(useful for inspecting tags or passing to C).
+Since `direct(42) == 42`, plain integers on the stack are already valid nouns.
+`>NOUN` and `NOUN>` are only meaningful for values ≥ 2⁶³ (stripping the top bit)
+or for readability. You do **not** need them at the REPL for ordinary use.
 
 ```forth
-42 >NOUN .         \ 000000000000002A  (noun = integer 42)
-42 >NOUN NOUN> .   \ 000000000000002A  (same)
+42 .  \ 000000000000002A  (plain integer is already a valid noun)
 ```
 
 ### Type tests
@@ -338,10 +337,10 @@ For atoms that fit in 63 bits, these are effectively identity operations.
 | `=NOUN` | `( n1 n2 -- flag )` | `-1` if structurally equal (deep compare), `0` otherwise |
 
 ```forth
-42 >NOUN   ATOM? .       \ FFFFFFFFFFFFFFFF  (true)
-1 >NOUN 2 >NOUN CONS  CELL? .  \ FFFFFFFFFFFFFFFF  (true)
-1 >NOUN 1 >NOUN  =NOUN .       \ FFFFFFFFFFFFFFFF  (equal)
-1 >NOUN 2 >NOUN  =NOUN .       \ 0000000000000000  (not equal)
+42  ATOM? .  \ FFFFFFFFFFFFFFFF  (true)
+1 2 CONS  CELL? .  \ FFFFFFFFFFFFFFFF  (true)
+1 1  =NOUN .  \ FFFFFFFFFFFFFFFF  (equal)
+1 2  =NOUN .  \ 0000000000000000  (not equal)
 ```
 
 ### Cell operations
@@ -353,16 +352,16 @@ For atoms that fit in 63 bits, these are effectively identity operations.
 | `CDR`  | `( cell -- tail )`       | Right element (tail) |
 
 ```forth
-1 >NOUN 2 >NOUN CONS    \ noun [1 2]
-DUP CAR NOUN> .         \ 0000000000000001
-CDR NOUN> .             \ 0000000000000002
+1 2 CONS  \ noun [1 2]
+DUP CAR .  \ 0000000000000001
+CDR .  \ 0000000000000002
 
 \ Nested cell [1 [2 3]]
-1 >NOUN
-2 >NOUN 3 >NOUN CONS    \ [2 3]
-CONS                    \ [1 [2 3]]
-DUP CDR CAR NOUN> .     \ 0000000000000002  (head of tail)
-CDR CDR NOUN> .         \ 0000000000000003  (tail of tail)
+1
+2 3 CONS  \ [2 3]
+CONS  \ [1 [2 3]]
+DUP CDR CAR .  \ 0000000000000002  (head of tail)
+CDR CDR .  \ 0000000000000003  (tail of tail)
 ```
 
 ### BLAKE3 and HATOM
@@ -373,7 +372,7 @@ CDR CDR NOUN> .         \ 0000000000000003  (tail of tail)
 | `B3OK`  | `( -- flag )`  | Run BLAKE3 official test vectors; `-1`=pass, `0`=fail |
 
 ```forth
-B3OK .   \ FFFFFFFFFFFFFFFF  (pass)
+B3OK .  \ FFFFFFFFFFFFFFFF  (pass)
 ```
 
 ### PILL
@@ -410,9 +409,9 @@ leading-1 sentinel bit; subsequent bits give head (`0`) / tail (`1`) steps:
 | 13 | 101 | Tail of head of tail |
 
 ```forth
-1 >NOUN 2 >NOUN CONS   \ subject = [1 2]
-DUP  2 >NOUN SWAP SLOT NOUN> .   \ 0000000000000001  (head)
-     3 >NOUN SWAP SLOT NOUN> .   \ 0000000000000002  (tail)
+1 2 CONS  \ subject = [1 2]
+DUP  2 SWAP SLOT .  \ 0000000000000001  (head)
+  3 SWAP SLOT .  \ 0000000000000002  (tail)
 ```
 
 ### NOCK — the evaluator
@@ -450,23 +449,24 @@ Tail calls (ops 2, 6, 7, 8, 9, 10 static, 11) use `goto loop` — no C stack gro
 
 ### Building formulas on the stack
 
-Formulas are cells, so construct them with `>NOUN` and `CONS`.
+Formulas are cells built with plain integers and `CONS`.
+Right-associative: `[a b c]` = `[a [b c]]`.
 
 For a two-argument opcode `[op arg1 arg2]`:
 
 ```forth
-op   >NOUN
-arg1 >NOUN
-arg2 >NOUN
-CONS         \ [arg1 arg2]
-CONS         \ [op [arg1 arg2]]
+op
+arg1
+arg2
+CONS  \ [arg1 arg2]
+CONS  \ [op [arg1 arg2]]
 ```
 
 For a one-argument opcode `[op arg]`:
 
 ```forth
-op  >NOUN
-arg >NOUN
+op
+arg
 CONS
 ```
 
@@ -478,6 +478,7 @@ For the distribution rule, build each branch separately then combine:
 <build g>
 CONS
 ```
+
 
 ---
 
@@ -494,7 +495,7 @@ are always nouns.
 | `N.` | `( noun -- )` | Print atom noun in decimal |
 
 ```forth
-1000000000000 >NOUN N.    \ 1000000000000
+1000000000000 >NOUN N.  \ 1000000000000
 ```
 
 > The REPL number parser only handles 64-bit integers.  To build large atoms
@@ -520,14 +521,14 @@ are always nouns.
 BNMUL  N.
 
 \ Integer division
-17 >NOUN  5 >NOUN  BNDIV NOUN> .   \ 0000000000000003
-17 >NOUN  5 >NOUN  BNMOD NOUN> .   \ 0000000000000002
+17 >NOUN  5 >NOUN  BNDIV .  \ 0000000000000003
+17 >NOUN  5 >NOUN  BNMOD .  \ 0000000000000002
 
 \ Verify: (a/b)*b + a%b = a
 100 >NOUN  7 >NOUN  2DUP
-BNDIV  ROT BNMUL   \ 100/7 * 7 = 98
-SWAP  100 >NOUN  ROT BNMOD   \ 100 mod 7 = 2
-BN+  N.            \ 100
+BNDIV  ROT BNMUL  \ 100/7 * 7 = 98
+SWAP  100 >NOUN  ROT BNMOD  \ 100 mod 7 = 2
+BN+  N.  \ 100
 ```
 
 ### Bit operations
@@ -552,10 +553,10 @@ BN+  N.            \ 100
 \ 0000000000000065  (= 101)
 
 \ 2^63 — the first indirect atom
-1 >NOUN 63 BNLSH  N.    \ 9223372036854775808
+1 >NOUN 63 BNLSH  N.  \ 9223372036854775808
 
 \ XOR of two atoms
-255 >NOUN  170 >NOUN  BNXOR NOUN> .
+255 >NOUN  170 >NOUN  BNXOR .
 \ 0000000000000055  (= 85)
 ```
 
@@ -577,19 +578,19 @@ Nouns can be serialized to atoms (and back) using the standard Urbit jam/cue enc
 
 ```forth
 \ Round-trip a small atom
-42 >NOUN  JAM  CUE  NOUN> .
+42 >NOUN  JAM  CUE  .
 \ 000000000000002A  (= 42)
 
 \ Round-trip a cell
-1 >NOUN 2 >NOUN CONS   \ [1 2]
-DUP JAM CUE            \ serialize then deserialize
-=NOUN .                \ FFFFFFFFFFFFFFFF  (identical)
+1 >NOUN 2 >NOUN CONS  \ [1 2]
+DUP JAM CUE  \ serialize then deserialize
+=NOUN .  \ FFFFFFFFFFFFFFFF  (identical)
 
 \ Inspect the jam of 0
-0 >NOUN JAM  NOUN> .   \ 0000000000000001  (jam(0) = atom 1)
+0 >NOUN JAM  .  \ 0000000000000001  (jam(0) = atom 1)
 
 \ Inspect the jam of [0 0]
-0 >NOUN DUP CONS  JAM  NOUN> .   \ 0000000000000031  (= 49)
+0 >NOUN DUP CONS  JAM  .  \ 0000000000000031  (= 49)
 ```
 
 **Encoding summary** (bits written LSB-first):
@@ -670,59 +671,59 @@ These words automate the construction of synthetic gate cores for jet testing.
 They are defined in the test preamble but can be entered in any session:
 
 ```forth
-: N>N  >NOUN ;
+: >NOUN ;
 
 \ Build a unary gate core: ( sample -- core )
 \ core = [battery=0  [sample  context=0]]
-: JCORE1  0 N>N CONS  0 N>N SWAP CONS ;
+: JCORE1  0 CONS  0 SWAP CONS ;
 
 \ Build a binary gate core: ( arg1 arg2 -- core )
 \ core = [0  [[arg1 arg2]  0]]
 \ slot(6,core) = [arg1 arg2];  slot(12,core) = arg1;  slot(13,core) = arg2
-: JCORE2  CONS  0 N>N CONS  0 N>N SWAP CONS ;
+: JCORE2  CONS  0 CONS  0 SWAP CONS ;
 
 \ Wrap core in an op-9 call formula: ( cord core -- subject formula )
 \ formula = [9 [2 [1 core]]]  — calls slot 2 (battery) of the constant core
-: JD  1 N>N SWAP CONS  2 N>N SWAP CONS  9 N>N SWAP CONS ;
+: JD  1 SWAP CONS  2 SWAP CONS  9 SWAP CONS ;
 
 \ Wrap in op-11 %wild hint so jets fire: ( subject formula -- subject formula' )
 : JWRAP
-    SWAP                            \ ( formula subject )
-    1 N>N 0 N>N CONS CONS           \ sock = [label [1 0]]  (cape=1=wildcard)
-    0 N>N CONS                      \ [[label sock] 0]  (singleton wilt list)
-    1 N>N SWAP CONS                 \ [[label sock] 0] with tail
-    1684826487 N>N SWAP CONS        \ [%wild wilt]
-    SWAP CONS                       \ [[%wild wilt] formula]
-    11 N>N SWAP CONS ;              \ [11 [[%wild wilt] formula]]
+  SWAP  \ ( formula subject )
+  1 0 CONS CONS  \ sock = [label [1 0]]  (cape=1=wildcard)
+  0 CONS  \ [[label sock] 0]  (singleton wilt list)
+  1 SWAP CONS  \ [[label sock] 0] with tail
+  1684826487 SWAP CONS  \ [%wild wilt]
+  SWAP CONS  \ [[%wild wilt] formula]
+  11 SWAP CONS ;  \ [11 [[%wild wilt] formula]]
 ```
 
 **Using the helpers:**
 
 ```forth
 \ Pattern for a unary jet:
-\ 0 N>N  <cord> N>N  <arg> N>N  JCORE1 JD JWRAP  NOCK  NOUN> .
+\ 0 <cord> <arg> JCORE1 JD JWRAP  NOCK  .
 
 \ Pattern for a binary jet:
-\ 0 N>N  <cord> N>N  <a> N>N  <b> N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+\ 0 <cord> <a> <b> JCORE2 JD JWRAP  NOCK  .
 
 \ dec(5) = 4
-0 N>N  6514020 N>N  5 N>N  JCORE1 JD JWRAP  NOCK  NOUN> .
+0 6514020 5 JCORE1 JD JWRAP  NOCK  .
 \ 0000000000000004
 
 \ add(100, 200) = 300
-0 N>N  6579297 N>N  100 N>N  200 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 6579297 100 200 JCORE2 JD JWRAP  NOCK  .
 \ 000000000000012C
 
 \ div(17, 5) = 3
-0 N>N  7760228 N>N  17 N>N  5 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 7760228 17 5 JCORE2 JD JWRAP  NOCK  .
 \ 0000000000000003
 
 \ mod(17, 5) = 2
-0 N>N  6582125 N>N  17 N>N  5 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 6582125 17 5 JCORE2 JD JWRAP  NOCK  .
 \ 0000000000000002
 
 \ lth(3, 4) = YES (0)
-0 N>N  6845548 N>N  3 N>N  4 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 6845548 3 4 JCORE2 JD JWRAP  NOCK  .
 \ 0000000000000000
 ```
 
@@ -738,7 +739,7 @@ formulas without manual REPL construction.
 
 ```
 Offset 0 : uint64_t  — byte count of jam data (N)
-Offset 8 : N bytes   — raw jam data
+Offset 8 : N bytes  — raw jam data
 ```
 
 ### Creating a pill from Python
@@ -747,9 +748,9 @@ Offset 8 : N bytes   — raw jam data
 import struct
 
 def write_pill(path, jam_bytes):
-    with open(path, 'wb') as f:
-        f.write(struct.pack('<Q', len(jam_bytes)))
-        f.write(jam_bytes)
+  with open(path, 'wb') as f:
+  f.write(struct.pack('<Q', len(jam_bytes)))
+  f.write(jam_bytes)
 
 # Example: pill containing a literal noun (you need to produce the jam bytes)
 write_pill('mypill.bin', my_jam_bytes)
@@ -769,11 +770,11 @@ This adds `-device loader,file=mypill.bin,addr=0x10000000,force-raw=on` to QEMU.
 ### Using PILL in the REPL
 
 ```forth
-PILL           \ loads atom from 0x10000000; returns noun 0 if nothing loaded
+PILL  \ loads atom from 0x10000000; returns noun 0 if nothing loaded
 PILL 0 >NOUN =NOUN IF  ." no pill"  ELSE
-    CUE                \ decode jammed [subject formula] pair
-    DUP CAR SWAP CDR   \ ( subject formula )
-    NOCK               \ evaluate
+  CUE  \ decode jammed [subject formula] pair
+  DUP CAR SWAP CDR  \ ( subject formula )
+  NOCK  \ evaluate
 THEN
 ```
 
@@ -785,17 +786,17 @@ atom `0`.  Check before cueing.
 ## 12. Memory Layout
 
 ```
-Address       Region                 Size     Notes
+Address  Region  Size  Notes
 ─────────────────────────────────────────────────────────────────
-0x0008F000    TIB                    256 B    Terminal input buffer
-0x00090000    Dictionary             ~3.5 MB  Grows upward from DICT_BASE
-0x00470000    Data stack top         64 KB    Grows downward (DSTACK_SIZE)
-0x00480000    Data stack / R-stack   64 KB    Return stack grows downward
-0x00490000    Cell heap              32 MB    Bump allocator (alloc_cell)
-0x06490000    Atom index             1 MB     65536 × 16-byte hash table
-0x06590000    Atom data              4 MB     atom_t + limbs bump allocator
-0x10000000    PILL load address      varies   QEMU -device loader target
-0x3F000000    BCM2835 MMIO           —        UART, GPIO (memory-mapped)
+0x0008F000  TIB  256 B  Terminal input buffer
+0x00090000  Dictionary  ~3.5 MB  Grows upward from DICT_BASE
+0x00470000  Data stack top  64 KB  Grows downward (DSTACK_SIZE)
+0x00480000  Data stack / R-stack  64 KB  Return stack grows downward
+0x00490000  Cell heap  32 MB  Bump allocator (alloc_cell)
+0x06490000  Atom index  1 MB  65536 × 16-byte hash table
+0x06590000  Atom data  4 MB  atom_t + limbs bump allocator
+0x10000000  PILL load address  varies  QEMU -device loader target
+0x3F000000  BCM2835 MMIO  —  UART, GPIO (memory-mapped)
 ```
 
 **Stack canary:** `0xDEADF0C4` is written at the data stack guard address on boot.
@@ -825,27 +826,27 @@ preserve them automatically.  No explicit save/restore is needed around `bl` cal
 **NEXT macro** — central dispatch at end of every code word:
 
 ```asm
-ldr W, [IP], #8    \ fetch next cell address into W; advance IP by 8
-ldr x0, [W]        \ load the codeword pointer from that entry
-br  x0             \ jump to the machine code
+ldr W, [IP], #8  \ fetch next cell address into W; advance IP by 8
+ldr x0, [W]  \ load the codeword pointer from that entry
+br  x0  \ jump to the machine code
 ```
 
 **Stack push / pop:**
 
 ```asm
-str x0, [DSP, #-8]!   \ push x0  (pre-decrement, then store)
-ldr x0, [DSP], #8     \ pop into x0  (load, then post-increment)
+str x0, [DSP, #-8]!  \ push x0  (pre-decrement, then store)
+ldr x0, [DSP], #8  \ pop into x0  (load, then post-increment)
 ```
 
 **Dictionary entry layout (32-byte header):**
 
 ```
-+0   link     (8 B)  — pointer to previous entry (0 = start of chain)
-+8   flags    (8 B)  — byte 0: name length (max 7)
-                       byte 1: F_IMMEDIATE=0x80, F_HIDDEN=0x40
-+16  name     (8 B)  — ASCII, zero-padded (max 7 characters)
++0  link  (8 B)  — pointer to previous entry (0 = start of chain)
++8  flags  (8 B)  — byte 0: name length (max 7)
+  byte 1: F_IMMEDIATE=0x80, F_HIDDEN=0x40
++16  name  (8 B)  — ASCII, zero-padded (max 7 characters)
 +24  codeword (8 B)  — pointer to machine code (DOCOL / DOCON / DOVAR / native)
-+32  body     (var)  — colon def: list of xt addresses; variable: cell; constant: value
++32  body  (var)  — colon def: list of xt addresses; variable: cell; constant: value
 ```
 
 ---
@@ -858,8 +859,8 @@ then evaluate them with `NOCK`.
 For convenience, define the preamble helpers first:
 
 ```forth
-: N>N  >NOUN ;
-: C>N  N>N SWAP N>N SWAP CONS ;
+: >NOUN ;
+: C>N  SWAP SWAP CONS ;
 ```
 
 ---
@@ -872,24 +873,24 @@ For convenience, define the preamble helpers first:
 
 ```forth
 \ *[42 [0 1]] = /[1 42] = 42  (whole subject)
-42 N>N
-0 N>N  1 N>N CONS        \ formula = [0 1]
-NOCK NOUN> .             \ 000000000000002A
+42
+0 1 CONS  \ formula = [0 1]
+NOCK .  \ 000000000000002A
 
 \ *[[1 2] [0 2]] = head = 1
-1 2 C>N                  \ subject = [1 2]
-0 N>N  2 N>N CONS
-NOCK NOUN> .             \ 0000000000000001
+1 2 CONS  \ subject = [1 2]
+0 2 CONS
+NOCK .  \ 0000000000000001
 
 \ *[[1 2] [0 3]] = tail = 2
-1 2 C>N
-0 N>N  3 N>N CONS
-NOCK NOUN> .             \ 0000000000000002
+1 2 CONS
+0 3 CONS
+NOCK .  \ 0000000000000002
 
 \ *[[[1 2] [3 4]] [0 5]] = tail of head = 2
-1 N>N 2 N>N CONS  3 N>N 4 N>N CONS  CONS   \ [[1 2] [3 4]]
-0 N>N  5 N>N CONS
-NOCK NOUN> .             \ 0000000000000002
+1 2 CONS  3 4 CONS  CONS  \ [[1 2] [3 4]]
+0 5 CONS
+NOCK .  \ 0000000000000002
 ```
 
 ---
@@ -902,16 +903,16 @@ NOCK NOUN> .             \ 0000000000000002
 
 ```forth
 \ *[_ [1 99]] = 99
-0 N>N
-1 N>N  99 N>N CONS
-NOCK NOUN> .             \ 0000000000000063
+0
+1 99 CONS
+NOCK .  \ 0000000000000063
 
 \ Constant cell: *[_ [1 [1 2]]] = [1 2]
-0 N>N
-1 N>N  1 2 C>N CONS
-NOCK                     \ product is cell [1 2]
-DUP CAR NOUN> .          \ 0000000000000001
-    CDR NOUN> .          \ 0000000000000002
+0
+1 1 2 CONS CONS
+NOCK  \ product is cell [1 2]
+DUP CAR .  \ 0000000000000001
+  CDR .  \ 0000000000000002
 ```
 
 ---
@@ -920,19 +921,19 @@ DUP CAR NOUN> .          \ 0000000000000001
 
 ```
 *[a  [3 f]]  =  0  if  *[a f]  is a cell
-             =  1  if  *[a f]  is an atom
+  =  1  if  *[a f]  is an atom
 ```
 
 ```forth
 \ Is 42 a cell? No → 1
-42 N>N
-3 N>N  0 N>N  1 N>N CONS CONS   \ formula = [3 [0 1]]
-NOCK NOUN> .                     \ 0000000000000001  (atom → NO)
+42
+3 0 1 CONS CONS  \ formula = [3 [0 1]]
+NOCK .  \ 0000000000000001  (atom → NO)
 
 \ Is [1 2] a cell? Yes → 0
-1 2 C>N
-3 N>N  0 N>N  1 N>N CONS CONS
-NOCK NOUN> .                     \ 0000000000000000  (cell → YES)
+1 2 CONS
+3 0 1 CONS CONS
+NOCK .  \ 0000000000000000  (cell → YES)
 ```
 
 ---
@@ -945,16 +946,16 @@ NOCK NOUN> .                     \ 0000000000000000  (cell → YES)
 
 ```forth
 \ *[41 [4 [0 1]]] = +41 = 42
-41 N>N
-4 N>N  0 N>N  1 N>N CONS CONS
-NOCK NOUN> .             \ 000000000000002A
+41
+4 0 1 CONS CONS
+NOCK .  \ 000000000000002A
 
 \ Chain two increments: *[0 [4 [4 [0 1]]]]
-0 N>N
-4 N>N
-    4 N>N  0 N>N  1 N>N CONS CONS   \ inner [4 [0 1]]
+0
+4
+  4 0 1 CONS CONS  \ inner [4 [0 1]]
 CONS
-NOCK NOUN> .             \ 0000000000000002
+NOCK .  \ 0000000000000002
 ```
 
 ---
@@ -963,23 +964,23 @@ NOCK NOUN> .             \ 0000000000000002
 
 ```
 *[a  [5 f g]]  =  0  if  *[a f] = *[a g]
-               =  1  otherwise
+  =  1  otherwise
 ```
 
 ```forth
 \ Same constant: *[_ [5 [1 42] [1 42]]] = 0 (YES)
-0 N>N
-5 N>N
-    1 N>N  42 N>N CONS        \ [1 42]
-    1 N>N  42 N>N CONS        \ [1 42]
-    CONS                      \ [[1 42] [1 42]]
+0
+5
+  1 42 CONS  \ [1 42]
+  1 42 CONS  \ [1 42]
+  CONS  \ [[1 42] [1 42]]
 CONS
-NOCK NOUN> .             \ 0000000000000000
+NOCK .  \ 0000000000000000
 
 \ Different: *[_ [5 [1 1] [1 2]]] = 1 (NO)
-0 N>N
-5 N>N  1 N>N 1 N>N CONS  1 N>N 2 N>N CONS  CONS  CONS
-NOCK NOUN> .             \ 0000000000000001
+0
+5 1 1 CONS  1 2 CONS  CONS  CONS
+NOCK .  \ 0000000000000001
 ```
 
 ---
@@ -988,41 +989,41 @@ NOCK NOUN> .             \ 0000000000000001
 
 ```
 *[a  [6 cond then else]]  =  *[a then]  if  *[a cond] = 0
-                           =  *[a else]  if  *[a cond] = 1
+  =  *[a else]  if  *[a cond] = 1
 ```
 
 ```forth
 \ Condition YES (0) → take then-branch (42)
-0 N>N
-6 N>N
-    1 N>N  0 N>N CONS        \ cond = [1 0]  (always YES)
-    1 N>N  42 N>N CONS       \ then = [1 42]
-    1 N>N  99 N>N CONS       \ else = [1 99]
-    CONS CONS
+0
+6
+  1 0 CONS  \ cond = [1 0]  (always YES)
+  1 42 CONS  \ then = [1 42]
+  1 99 CONS  \ else = [1 99]
+  CONS CONS
 CONS
-NOCK NOUN> .             \ 000000000000002A  (42)
+NOCK .  \ 000000000000002A  (42)
 
 \ Condition NO (1) → take else-branch (99)
-0 N>N
-6 N>N
-    1 N>N  1 N>N CONS        \ cond = [1 1]  (always NO)
-    1 N>N  42 N>N CONS
-    1 N>N  99 N>N CONS
-    CONS CONS
+0
+6
+  1 1 CONS  \ cond = [1 1]  (always NO)
+  1 42 CONS
+  1 99 CONS
+  CONS CONS
 CONS
-NOCK NOUN> .             \ 0000000000000063  (99)
+NOCK .  \ 0000000000000063  (99)
 
 \ Dynamic condition: branch on whether subject is 0
 \ *[0 [6 [3 [0 1]] [1 99] [1 42]]]
 \ = wut(0) = 1 (atom) → else branch = 42
-0 N>N
-6 N>N
-    3 N>N  0 N>N  1 N>N CONS CONS   \ cond: wut(subject)
-    1 N>N  99 N>N CONS
-    1 N>N  42 N>N CONS
-    CONS CONS
+0
+6
+  3 0 1 CONS CONS  \ cond: wut(subject)
+  1 99 CONS
+  1 42 CONS
+  CONS CONS
 CONS
-NOCK NOUN> .             \ 000000000000002A  (42, subject is atom)
+NOCK .  \ 000000000000002A  (42, subject is atom)
 ```
 
 ---
@@ -1035,13 +1036,13 @@ NOCK NOUN> .             \ 000000000000002A  (42, subject is atom)
 
 ```forth
 \ *[5 [7 [4 [0 1]] [4 [0 1]]]] = (5+1)+1 = 7
-5 N>N
-7 N>N
-    4 N>N  0 N>N  1 N>N CONS CONS   \ f = increment subject
-    4 N>N  0 N>N  1 N>N CONS CONS   \ g = increment result
-    CONS
+5
+7
+  4 0 1 CONS CONS  \ f = increment subject
+  4 0 1 CONS CONS  \ g = increment result
+  CONS
 CONS
-NOCK NOUN> .             \ 0000000000000007
+NOCK .  \ 0000000000000007
 ```
 
 ---
@@ -1055,22 +1056,22 @@ NOCK NOUN> .             \ 0000000000000007
 ```forth
 \ Pin 99 onto subject 42; then take head of new subject
 \ *[42 [8 [1 99] [0 2]]] = head of [99 42] = 99
-42 N>N
-8 N>N
-    1 N>N  99 N>N CONS      \ pin formula: constant 99
-    0 N>N  2 N>N CONS       \ body formula: take head (axis 2)
-    CONS
+42
+8
+  1 99 CONS  \ pin formula: constant 99
+  0 2 CONS  \ body formula: take head (axis 2)
+  CONS
 CONS
-NOCK NOUN> .             \ 0000000000000063  (99)
+NOCK .  \ 0000000000000063  (99)
 
 \ Pin 99 and then increment it: *[0 [8 [1 99] [4 [0 2]]]]
-0 N>N
-8 N>N
-    1 N>N  99 N>N CONS
-    4 N>N  0 N>N  2 N>N CONS CONS   \ body: lus(head of extended subject)
-    CONS
+0
+8
+  1 99 CONS
+  4 0 2 CONS CONS  \ body: lus(head of extended subject)
+  CONS
 CONS
-NOCK NOUN> .             \ 0000000000000064  (100)
+NOCK .  \ 0000000000000064  (100)
 ```
 
 ---
@@ -1089,27 +1090,27 @@ pair **must** be a cell; an atom in that position is a Nock crash.
 ```forth
 \ Replace head of [1 2] with 99:
 \ #[2 99 [1 2]] = [99 2]
-0 N>N
-10 N>N
-    2 N>N  1 N>N  99 N>N CONS CONS   \ [2 [1 99]]  (axis=2, new-val=const 99)
-    1 N>N  1 2 C>N CONS              \ [1 [1 2]]   (target = constant [1 2])
-    CONS
+0
+10
+  2 1 99 CONS CONS  \ [2 [1 99]]  (axis=2, new-val=const 99)
+  1 1 2 CONS CONS  \ [1 [1 2]]  (target = constant [1 2])
+  CONS
 CONS
-NOCK                     \ product = [99 2]
-DUP CAR NOUN> .          \ 0000000000000063  (99)
-    CDR NOUN> .          \ 0000000000000002  (2)
+NOCK  \ product = [99 2]
+DUP CAR .  \ 0000000000000063  (99)
+  CDR .  \ 0000000000000002  (2)
 
 \ Replace tail of subject [10 20] with 99:
 \ *[[10 20] [10 [3 [1 99]] [0 1]]]
-10 N>N 20 N>N CONS
-10 N>N
-    3 N>N  1 N>N  99 N>N CONS CONS   \ [3 [1 99]]  (axis=3, val=const 99)
-    0 N>N  1 N>N CONS               \ [0 1]  (target = whole subject)
-    CONS
+10 20 CONS
+10
+  3 1 99 CONS CONS  \ [3 [1 99]]  (axis=3, val=const 99)
+  0 1 CONS  \ [0 1]  (target = whole subject)
+  CONS
 CONS
-NOCK                     \ [10 99]
-DUP CAR NOUN> .          \ 000000000000000A  (10)
-    CDR NOUN> .          \ 0000000000000063  (99)
+NOCK  \ [10 99]
+DUP CAR .  \ 000000000000000A  (10)
+  CDR .  \ 0000000000000063  (99)
 ```
 
 ---
@@ -1120,28 +1121,28 @@ DUP CAR NOUN> .          \ 000000000000000A  (10)
 
 ```forth
 \ *[42 [11 99 [4 [0 1]]]] = +42 = 43  (hint tag 99 is ignored)
-42 N>N
-11 N>N
-    99 N>N                           \ static hint tag (any atom)
-    4 N>N  0 N>N  1 N>N CONS CONS   \ body: increment
-    CONS
+42
+11
+  99 \ static hint tag (any atom)
+  4 0 1 CONS CONS  \ body: increment
+  CONS
 CONS
-NOCK NOUN> .             \ 000000000000002B  (43)
+NOCK .  \ 000000000000002B  (43)
 ```
 
 **Dynamic hint with %slog** (prints clue to UART):
 
 ```forth
 \ %slog prints clue, then evaluates body
-42 N>N
-11 N>N
-    1735355507 N>N               \ %slog cord
-    0 N>N  1 N>N CONS           \ clue formula = [0 1] = subject
-    CONS                         \ [%slog [0 1]]
-    4 N>N  0 N>N  1 N>N CONS CONS   \ body: increment
-    CONS                         \ [[%slog clue] body]
+42
+11
+  1735355507 \ %slog cord
+  0 1 CONS  \ clue formula = [0 1] = subject
+  CONS  \ [%slog [0 1]]
+  4 0 1 CONS CONS  \ body: increment
+  CONS  \ [[%slog clue] body]
 CONS
-NOCK NOUN> .
+NOCK .
 \ UART output: slog: 2a
 \ Stack result: 000000000000002B  (43)
 ```
@@ -1160,32 +1161,32 @@ The JCORE2/JD/JWRAP helpers build a synthetic core for testing:
 \ JCORE2 builds core = [0 [[3 4] 0]]
 \ JD wraps: formula = [9 [2 [1 core]]]
 \ JWRAP adds: [11 [[%wild [[%add [1 0]] 0]] formula]]
-0 N>N  6579297 N>N  3 N>N  4 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 6579297 3 4 JCORE2 JD JWRAP  NOCK  .
 \ 0000000000000007
 
 \ sub(10, 3)
-0 N>N  6452595 N>N  10 N>N  3 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 6452595 10 3 JCORE2 JD JWRAP  NOCK  .
 \ 0000000000000007
 
 \ mul(6, 7)
-0 N>N  7107949 N>N  6 N>N  7 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 7107949 6 7 JCORE2 JD JWRAP  NOCK  .
 \ 000000000000002A  (42)
 
 \ lth(3, 4) → YES (0)
-0 N>N  6845548 N>N  3 N>N  4 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 6845548 3 4 JCORE2 JD JWRAP  NOCK  .
 \ 0000000000000000
 
 \ div(100, 7) = 14
-0 N>N  7760228 N>N  100 N>N  7 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 7760228 100 7 JCORE2 JD JWRAP  NOCK  .
 \ 000000000000000E  (14)
 
 \ mod(100, 7) = 2
-0 N>N  6582125 N>N  100 N>N  7 N>N  JCORE2 JD JWRAP  NOCK  NOUN> .
+0 6582125 100 7 JCORE2 JD JWRAP  NOCK  .
 \ 0000000000000002
 
 \ Large bignum: mul(10^11, 10^11) via jet
-0 N>N  7107949 N>N
-100000000000 N>N  100000000000 N>N
+0 7107949
+100000000000 100000000000
 JCORE2 JD JWRAP  NOCK  N.
 \ 10000000000000000000000  (= 10^22)
 ```
@@ -1200,15 +1201,15 @@ JCORE2 JD JWRAP  NOCK  N.
 
 ```forth
 \ *[0 [2 [1 42] [1 [4 [0 1]]]]] = *[42 [4 [0 1]]] = 43
-0 N>N
-2 N>N
-    1 N>N  42 N>N CONS              \ subject formula: constant 42
-    1 N>N
-        4 N>N  0 N>N  1 N>N CONS CONS   \ formula formula: constant [4 [0 1]]
-    CONS
-    CONS
+0
+2
+  1 42 CONS  \ subject formula: constant 42
+  1
+  4 0 1 CONS CONS  \ formula formula: constant [4 [0 1]]
+  CONS
+  CONS
 CONS
-NOCK NOUN> .             \ 000000000000002B  (43)
+NOCK .  \ 000000000000002B  (43)
 ```
 
 ---
@@ -1217,16 +1218,16 @@ NOCK NOUN> .             \ 000000000000002B  (43)
 
 ```forth
 \ Build a noun, serialize, deserialize, verify
-1 N>N 2 N>N CONS   3 N>N 4 N>N CONS   CONS   \ [[1 2] [3 4]]
-DUP                                            \ save for comparison
-JAM                                            \ serialize
-CUE                                            \ deserialize
-=NOUN .                                        \ FFFFFFFFFFFFFFFF (equal)
+1 2 CONS  3 4 CONS  CONS  \ [[1 2] [3 4]]
+DUP  \ save for comparison
+JAM  \ serialize
+CUE  \ deserialize
+=NOUN .  \ FFFFFFFFFFFFFFFF (equal)
 
 \ Inspect jam of small atoms
-0 >NOUN JAM NOUN> .   \ 0000000000000001  (jam(0) = 1)
-1 >NOUN JAM NOUN> .   \ 000000000000000C  (jam(1) = 12)
-2 >NOUN JAM NOUN> .   \ 0000000000000048  (jam(2) = 72)
+0 >NOUN JAM .  \ 0000000000000001  (jam(0) = 1)
+1 >NOUN JAM .  \ 000000000000000C  (jam(1) = 12)
+2 >NOUN JAM .  \ 0000000000000048  (jam(2) = 72)
 ```
 
 ---
@@ -1237,12 +1238,12 @@ Use Forth loops around NOCK to iterate a Nock step-function:
 
 ```forth
 \ Apply *[subj [4 [0 1]]] ten times: increment subject 10 times
-0 N>N           \ initial subject (atom 0)
-4 N>N  0 N>N  1 N>N CONS CONS   \ formula: increment
+0 \ initial subject (atom 0)
+4 0 1 CONS CONS  \ formula: increment
 
 10 0 DO
-    OVER OVER SWAP NOCK SWAP DROP   \ ( formula result ) then drop old subj
-    \ actually need to rotate carefully:
+  OVER OVER SWAP NOCK SWAP DROP  \ ( formula result ) then drop old subj
+  \ actually need to rotate carefully:
 LOOP
 ```
 
@@ -1250,25 +1251,25 @@ A cleaner pattern keeps the formula on the return stack:
 
 ```forth
 : ITERATE-INC ( n -- result )
-    \ Apply [4 [0 1]] n times to 0
-    0 N>N           \ starting subject
-    SWAP 0 DO
-        4 N>N  0 N>N  1 N>N CONS CONS SWAP NOCK
-    LOOP ;
+  \ Apply [4 [0 1]] n times to 0
+  0 \ starting subject
+  SWAP 0 DO
+  4 0 1 CONS CONS SWAP NOCK
+  LOOP ;
 \ Note: DO/LOOP is not implemented; use BEGIN/UNTIL instead:
 
 : ITER-INC-BU ( start-noun n -- result )
-    BEGIN
-        DUP 0 >
-    WHILE
-        SWAP
-        4 N>N  0 N>N  1 N>N CONS CONS   \ formula = [4 [0 1]]
-        SWAP NOCK                        \ *[current formula]
-        SWAP 1-                          \ decrement counter
-    REPEAT
-    DROP ;
+  BEGIN
+  DUP 0 >
+  WHILE
+  SWAP
+  4 0 1 CONS CONS  \ formula = [4 [0 1]]
+  SWAP NOCK  \ *[current formula]
+  SWAP 1-  \ decrement counter
+  REPEAT
+  DROP ;
 
-0 N>N  10  ITER-INC-BU  NOUN> .   \ 000000000000000A  (10)
+0 10  ITER-INC-BU  .  \ 000000000000000A  (10)
 ```
 
 ---
@@ -1304,36 +1305,36 @@ Urbit cords encode ASCII strings little-endian (LSB = first character).
 ```
 Reduction rules:
 
-  *[a 0 b]           /[b a]
-  *[a 1 b]           b
-  *[a 2 b c]         *[*[a b] *[a c]]
-  *[a 3 b]           ?(*[a b])        0=cell, 1=atom
-  *[a 4 b]           +(*[a b])        increment
-  *[a 5 b c]         =(*[a b] *[a c]) 0=same, 1=differ
-  *[a 6 b c d]       *[a c] if *[a b]=0, else *[a d]
-  *[a 7 b c]         *[*[a b] c]
-  *[a 8 b c]         *[[*[a b] a] c]
-  *[a 9 b c]         let core=*[a c] in *[core 0 b]   (arm call)
-  *[a 10 [b c] d]    #[b *[a c] *[a d]]               (tree edit; [b c] must be a cell)
-  *[a 11 [b c] d]    *[a d] (after evaluating *[a c])  (dynamic hint)
-  *[a 11 b c]        *[a c]                            (static hint)
-  *[a [b c] d]       [*[a b c] *[a d]]                (distribution)
+  *[a 0 b]  /[b a]
+  *[a 1 b]  b
+  *[a 2 b c]  *[*[a b] *[a c]]
+  *[a 3 b]  ?(*[a b])  0=cell, 1=atom
+  *[a 4 b]  +(*[a b])  increment
+  *[a 5 b c]  =(*[a b] *[a c]) 0=same, 1=differ
+  *[a 6 b c d]  *[a c] if *[a b]=0, else *[a d]
+  *[a 7 b c]  *[*[a b] c]
+  *[a 8 b c]  *[[*[a b] a] c]
+  *[a 9 b c]  let core=*[a c] in *[core 0 b]  (arm call)
+  *[a 10 [b c] d]  #[b *[a c] *[a d]]  (tree edit; [b c] must be a cell)
+  *[a 11 [b c] d]  *[a d] (after evaluating *[a c])  (dynamic hint)
+  *[a 11 b c]  *[a c]  (static hint)
+  *[a [b c] d]  [*[a b c] *[a d]]  (distribution)
 
 Slot rules:
 
-  /[1 a]             a
-  /[2 [h t]]         h
-  /[3 [h t]]         t
-  /[(2*k) a]         /[k /[2 a]]
-  /[(2*k+1) a]       /[k /[3 a]]
+  /[1 a]  a
+  /[2 [h t]]  h
+  /[3 [h t]]  t
+  /[(2*k) a]  /[k /[2 a]]
+  /[(2*k+1) a]  /[k /[3 a]]
 
 Edit rules:
 
-  #[1 v t]           v
-  #[2 v [h t]]       [v t]
-  #[3 v [h t]]       [h v]
-  #[(2*k) v t]       edit head of sub-tree at k
-  #[(2*k+1) v t]     edit tail of sub-tree at k
+  #[1 v t]  v
+  #[2 v [h t]]  [v t]
+  #[3 v [h t]]  [h v]
+  #[(2*k) v t]  edit head of sub-tree at k
+  #[(2*k+1) v t]  edit tail of sub-tree at k
 
 Nock booleans:  0 = YES (true), 1 = NO (false)
 

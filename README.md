@@ -32,13 +32,12 @@ Tests and benchmarks are [available](./BENCHMARK.md).
 
 ## REPL basics
 
-The kernel boots into a bare-metal Forth REPL. Nouns are 64-bit tagged words;
-the key words for working with them:
+The kernel boots into a bare-metal Forth REPL. Nouns are 64-bit tagged words.
+After Phase 5d, small integers are already valid direct atoms — `direct(42) == 42` —
+so no conversion is needed:
 
 | Word | Stack effect | Description |
 |------|-------------|-------------|
-| `N>N` | `( n -- noun )` | wrap raw integer as a direct atom |
-| `NOUN>` | `( noun -- n )` | extract raw integer from a direct atom |
 | `CONS` | `( head tail -- cell )` | allocate a cell |
 | `CAR` | `( cell -- head )` | head of a cell |
 | `CDR` | `( cell -- tail )` | tail of a cell |
@@ -49,6 +48,8 @@ the key words for working with them:
 | `PILL` | `( -- atom )` | load jammed atom from QEMU file loader |
 | `.` | `( n -- )` | print top of stack as 16-digit hex |
 | `N.` | `( noun -- )` | print atom as decimal |
+| `>NOUN` | `( n -- noun )` | clears bit 63; no-op for values < 2⁶³ |
+| `NOUN>` | `( noun -- n )` | clears bit 63; no-op for values < 2⁶³ |
 
 See the [Forth documentation](./FORTH.md) for more details on the Forth environment and available words.
 
@@ -56,19 +57,19 @@ See the [Forth documentation](./FORTH.md) for more details on the Forth environm
 
 ### 1. Build inline at the REPL
 
-`NOCK` consumes `( subject formula -- result )`. Build nouns with `N>N` and
-`CONS`. Nock cells are right-associative: `[a b c]` = `[a [b c]]`, so push
+`NOCK` consumes `( subject formula -- result )`. Build nouns with plain integers
+and `CONS`. Nock cells are right-associative: `[a b c]` = `[a [b c]]`, so push
 `a`, push `b`, push `c`, then `CONS CONS`.
 
 ```forth
 \ *[42 [0 1]] = 42  (slot 1 of atom)
-42 N>N   0 N>N 1 N>N CONS   NOCK NOUN> .
+42   0 1 CONS   NOCK .
 
 \ *[42 [4 [0 1]]] = 43  (increment)
-42 N>N   4 N>N 0 N>N 1 N>N CONS CONS   NOCK NOUN> .
+42   4 0 1 CONS CONS   NOCK N.
 
 \ *[0 [1 [1 2]]] = [1 2]  (quote a cell), print head
-0 N>N   1 N>N   1 N>N 2 N>N CONS CONS   NOCK CAR NOUN> .
+0   1   1 2 CONS CONS   NOCK CAR N.
 ```
 
 General rule: work **right-to-left** — innermost subterms first, then `CONS`

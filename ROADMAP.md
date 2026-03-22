@@ -40,23 +40,24 @@ TD "description"  "decimal-string"  "forth expression ending with N."
 Several helper words are defined before any test expression runs:
 
 ```forth
-: N>N >NOUN ;
-: C>N N>N SWAP N>N SWAP CONS ;
-: JCORE1 0 N>N CONS 0 N>N SWAP CONS ;
-: JCORE2 CONS 0 N>N CONS 0 N>N SWAP CONS ;
-: JD 1 N>N SWAP CONS 2 N>N SWAP CONS 9 N>N SWAP CONS ;
+: N>N >NOUN ;        \ alias; >NOUN is a no-op for small integers
+: C>N SWAP CONS ;    \ ( head tail -- cell ) convenience
+: JCORE1 0 CONS 0 SWAP CONS ;
+: JCORE2 CONS 0 CONS 0 SWAP CONS ;
+: JD 1 SWAP CONS 2 SWAP CONS 9 SWAP CONS ;
 : JWRAP ... ;   \ wraps a core in a %wild op11 hint for jet dispatch
 ```
 
 ### Nock formula construction pattern
 
-Nock formulas are built on the stack right-to-left using `CONS`. The opcode digit goes at
-the head of the outermost cell:
+Nock formulas are built on the stack right-to-left using `CONS`. Plain integers
+are direct atoms; no conversion is needed. The opcode digit goes at the head of
+the outermost cell:
 
 ```
-subj N>N  OP N>N  arg1 N>N  arg2 N>N  CONS  CONS  NOCK
-          ─────   ────────────────────────────────
-          head    tail (formula body)
+subj  OP  arg1  arg2  CONS  CONS  NOCK
+      ──  ────────────────────────
+      head    tail (formula body)
 ```
 
 For opcodes with nested sub-formulas, the pattern repeats recursively with more `CONS` calls.
