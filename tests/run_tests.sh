@@ -892,6 +892,47 @@ T "9b: Forth add jet add(3,4)=7"  "0000000000000007" \
 T "9b: Forth add jet add(10,20)=30" "000000000000001E" \
     "0 N>N  6579297 N>N  10 N>N  20 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
 
+# ── Phase 9b — remaining gate jets via SKNOCK ────────────────────────────────
+T "9b: Forth sub jet sub(10,3)=7"  "0000000000000007" \
+    "0 N>N  6452595 N>N  10 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth sub jet sub(5,5)=0"   "0000000000000000" \
+    "0 N>N  6452595 N>N  5 N>N  5 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
+T "9b: Forth mul jet mul(6,7)=42"  "000000000000002A" \
+    "0 N>N  7107949 N>N  6 N>N  7 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth mul jet mul(0,99)=0"  "0000000000000000" \
+    "0 N>N  7107949 N>N  0 N>N  99 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
+T "9b: Forth div jet div(10,3)=3"  "0000000000000003" \
+    "0 N>N  7760228 N>N  10 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth div jet div(7,7)=1"   "0000000000000001" \
+    "0 N>N  7760228 N>N  7 N>N  7 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
+T "9b: Forth mod jet mod(10,3)=1"  "0000000000000001" \
+    "0 N>N  6582125 N>N  10 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth mod jet mod(12,4)=0"  "0000000000000000" \
+    "0 N>N  6582125 N>N  12 N>N  4 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
+T "9b: Forth lth jet lth(3,4)=yes" "0000000000000000" \
+    "0 N>N  6845548 N>N  3 N>N  4 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth lth jet lth(4,3)=no"  "0000000000000001" \
+    "0 N>N  6845548 N>N  4 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
+T "9b: Forth gth jet gth(5,3)=yes" "0000000000000000" \
+    "0 N>N  6845543 N>N  5 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth gth jet gth(3,5)=no"  "0000000000000001" \
+    "0 N>N  6845543 N>N  3 N>N  5 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
+T "9b: Forth lte jet lte(3,3)=yes" "0000000000000000" \
+    "0 N>N  6648940 N>N  3 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth lte jet lte(4,3)=no"  "0000000000000001" \
+    "0 N>N  6648940 N>N  4 N>N  3 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
+T "9b: Forth gte jet gte(5,5)=yes" "0000000000000000" \
+    "0 N>N  6648935 N>N  5 N>N  5 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+T "9b: Forth gte jet gte(2,5)=no"  "0000000000000001" \
+    "0 N>N  6648935 N>N  2 N>N  5 N>N  JCORE2 JD JWRAP  SKNOCK  NOUN> ."
+
 # ── Phase 9f — %tame hint: compile Forth jet from Nock at eval time ──────────
 # %tame fires at eval time → calls forth_eval_string(source-cord) → Forth word
 # appears in dictionary.  The enclosing %wild scopes the jet registration.
@@ -1011,6 +1052,48 @@ T "crash: unimplemented op12"    "000000000000002A" "42 ."
 # -- %tame crashes --
 BEFORE "0 N>N  1701667188 N>N  42 N>N  CONS  11 N>N  SWAP  CONS  1 N>N  99 N>N  CONS  CONS  NOCK DROP"
 T "crash: %tame atom clue"       "000000000000002A" "42 ."
+
+# -- %wild malformed clue crashes --
+BEFORE "0 N>N  42 N>N  0 N>N  CONS  1 N>N  SWAP  CONS  1684826487 N>N  SWAP  CONS  1 N>N  99 N>N  CONS  CONS  11 N>N  SWAP  CONS  NOCK DROP"
+T "crash: %wild entry not cell"  "000000000000002A" "42 ."
+BEFORE "0 N>N  6514020 N>N  42 N>N  CONS  0 N>N  CONS  1 N>N  SWAP  CONS  1684826487 N>N  SWAP  CONS  1 N>N  99 N>N  CONS  CONS  11 N>N  SWAP  CONS  NOCK DROP"
+T "crash: %wild sock not cell"   "000000000000002A" "42 ."
+
+# -- jet arg crashes --
+BEFORE "0 N>N  6514020 N>N  1 N>N  2 N>N  CONS  JCORE1 JD JWRAP  NOCK DROP"
+T "crash: jet dec cell sample"   "000000000000002A" "42 ."
+BEFORE "0 N>N  6579297 N>N  1 N>N  2 N>N  CONS  3 N>N  JCORE2 JD JWRAP  NOCK DROP"
+T "crash: jet add cell arg"      "000000000000002A" "42 ."
+BEFORE "0 N>N  6452595 N>N  1 N>N  2 N>N  CONS  3 N>N  JCORE2 JD JWRAP  NOCK DROP"
+T "crash: jet sub cell arg"      "000000000000002A" "42 ."
+BEFORE "0 N>N  7107949 N>N  1 N>N  2 N>N  CONS  3 N>N  JCORE2 JD JWRAP  NOCK DROP"
+T "crash: jet mul cell arg"      "000000000000002A" "42 ."
+BEFORE "0 N>N  7760228 N>N  1 N>N  2 N>N  CONS  3 N>N  JCORE2 JD JWRAP  NOCK DROP"
+T "crash: jet div cell arg"      "000000000000002A" "42 ."
+BEFORE "0 N>N  6582125 N>N  1 N>N  2 N>N  CONS  3 N>N  JCORE2 JD JWRAP  NOCK DROP"
+T "crash: jet mod cell arg"      "000000000000002A" "42 ."
+
+# -- hax (tree edit) crashes --
+BEFORE "0 N>N  0 N>N  1 N>N  99 N>N  CONS  CONS  1 N>N  42 N>N  CONS  CONS  10 N>N  SWAP  CONS  NOCK DROP"
+T "crash: edit axis 0"           "000000000000002A" "42 ."
+BEFORE "0 N>N  2 N>N  1 N>N  99 N>N  CONS  CONS  1 N>N  42 N>N  CONS  CONS  10 N>N  SWAP  CONS  NOCK DROP"
+T "crash: edit in atom"          "000000000000002A" "42 ."
+
+# -- slot indirect axis --
+BEFORE "42 N>N  0 N>N  I63  CONS  NOCK DROP"
+T "crash: slot axis not direct"  "000000000000002A" "42 ."
+
+# -- %tame name mismatch --
+BEFORE "0 N>N  7303014 N>N  16642418994651194 N>N  CONS  1 N>N  SWAP  CONS  1701667188 N>N  SWAP  CONS  1 N>N  0 N>N  CONS  CONS  11 N>N  SWAP  CONS  NOCK DROP"
+T "crash: %tame name mismatch"   "000000000000002A" "42 ."
+
+# -- op10/op11 structural crashes --
+BEFORE "0 N>N  I63  1 N>N  99 N>N  CONS  CONS  1 N>N  42 N>N  CONS  CONS  10 N>N  SWAP  CONS  NOCK DROP"
+T "crash: op10 axis not direct"  "000000000000002A" "42 ."
+BEFORE "0 N>N  42 N>N  1 N>N  42 N>N  CONS  CONS  10 N>N  SWAP  CONS  NOCK DROP"
+T "crash: op10 atom hint"        "000000000000002A" "42 ."
+BEFORE "0 N>N  I63  1 N>N  99 N>N  CONS  CONS  1 N>N  42 N>N  CONS  CONS  11 N>N  SWAP  CONS  NOCK DROP"
+T "crash: op11 tag not direct"   "000000000000002A" "42 ."
 
 # ── Forth Primitives Smoke Tests ──────────────────────────────────────────
 # Basic sanity checks for core Forth words.
